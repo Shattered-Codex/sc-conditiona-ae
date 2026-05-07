@@ -238,8 +238,24 @@ function cleanSubmitData(sheet, submitData) {
   for (const target of targets) {
     cleanConditionSubmitData(target);
     if (ModuleSettings.isFormulaChangesEnabled()) {
+      collectFormulaSubmitData(sheet, target);
       ActiveEffectFormulaChangeService.prepareSubmitData(sheet.document, target);
     }
+  }
+}
+
+function collectFormulaSubmitData(sheet, submitData) {
+  const root = getSheetRoot(sheet);
+  if (!root || !submitData) {
+    return;
+  }
+
+  for (const input of root.querySelectorAll(".sc-cae-formula-input")) {
+    if (!input.name) {
+      continue;
+    }
+
+    foundry.utils.setProperty(submitData, input.name, input.value ?? "");
   }
 }
 

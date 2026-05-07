@@ -14,14 +14,14 @@ export class ActiveEffectFormulaChangeService {
     if (!prepared.changed) {
       if (ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(ActiveEffectFormulaChangeService.#getSubmittedFormulaChanges(data))) {
         const sourceUpdate = {};
-        foundry.utils.setProperty(sourceUpdate, Constants.FORMULA_CHANGES_FLAG_PATH, null);
+        ActiveEffectFormulaChangeService.#clearFormulaChanges(sourceUpdate);
         effect.updateSource(sourceUpdate);
       }
       return;
     }
 
     const sourceUpdate = { changes: prepared.changes };
-    foundry.utils.setProperty(sourceUpdate, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
+    ActiveEffectFormulaChangeService.#setFormulaChanges(sourceUpdate, prepared.formulaChanges);
     effect.updateSource(sourceUpdate);
   }
 
@@ -30,10 +30,12 @@ export class ActiveEffectFormulaChangeService {
       return;
     }
 
+    const existingFormulaChanges = ActiveEffectFormulaChangeService.#getFormulaChanges(effect);
     const submittedFormulaChanges = ActiveEffectFormulaChangeService.#getSubmittedFormulaChanges(updates);
-    if (Array.isArray(updates?.changes)) {
-      const prepared = ActiveEffectFormulaChangeService.#prepareChanges(updates, {
-        existing: ActiveEffectFormulaChangeService.#getFormulaChanges(effect),
+    const submittedChanges = ActiveEffectFormulaChangeService.#getSubmittedChanges(effect, updates);
+    if (submittedChanges) {
+      const prepared = ActiveEffectFormulaChangeService.#prepareChanges({ changes: submittedChanges }, {
+        existing: existingFormulaChanges,
         submitted: submittedFormulaChanges
       });
       if (!prepared.changed) {
@@ -42,21 +44,21 @@ export class ActiveEffectFormulaChangeService {
           || ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(submittedFormulaChanges)
         ) {
           ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
-          foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, null);
+          ActiveEffectFormulaChangeService.#clearFormulaChanges(updates);
         }
         return;
       }
 
-      updates.changes = prepared.changes;
+      ActiveEffectFormulaChangeService.#setSubmittedChanges(updates, prepared.changes);
       ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
-      foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
+      ActiveEffectFormulaChangeService.#setFormulaChanges(updates, prepared.formulaChanges, existingFormulaChanges);
       return;
     }
 
     const flattenedChanges = ActiveEffectFormulaChangeService.#getFlattenedChangeUpdates(effect, updates);
     if (flattenedChanges) {
       const prepared = ActiveEffectFormulaChangeService.#prepareChanges({ changes: flattenedChanges }, {
-        existing: ActiveEffectFormulaChangeService.#getFormulaChanges(effect),
+        existing: existingFormulaChanges,
         submitted: submittedFormulaChanges
       });
       ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(updates);
@@ -68,29 +70,29 @@ export class ActiveEffectFormulaChangeService {
           || ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(submittedFormulaChanges)
         ) {
           ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
-          foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, null);
+          ActiveEffectFormulaChangeService.#clearFormulaChanges(updates);
         }
         return;
       }
 
       updates.changes = prepared.changes;
       ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
-      foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
+      ActiveEffectFormulaChangeService.#setFormulaChanges(updates, prepared.formulaChanges, existingFormulaChanges);
       return;
     }
 
     if (ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(submittedFormulaChanges)) {
       const prepared = ActiveEffectFormulaChangeService.#prepareChanges(effect, {
-        existing: ActiveEffectFormulaChangeService.#getFormulaChanges(effect),
+        existing: existingFormulaChanges,
         submitted: submittedFormulaChanges
       });
       if (prepared.changed) {
         updates.changes = prepared.changes;
         ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
-        foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
+        ActiveEffectFormulaChangeService.#setFormulaChanges(updates, prepared.formulaChanges, existingFormulaChanges);
       } else if (ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
         ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
-        foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, null);
+        ActiveEffectFormulaChangeService.#clearFormulaChanges(updates);
       }
       return;
     }
@@ -100,7 +102,7 @@ export class ActiveEffectFormulaChangeService {
       if (prepared.changed) {
         updates.changes = prepared.changes;
         ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
-        foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
+        ActiveEffectFormulaChangeService.#setFormulaChanges(updates, prepared.formulaChanges);
         return;
       }
     }
@@ -177,7 +179,7 @@ export class ActiveEffectFormulaChangeService {
     }
 
     const updateData = { changes };
-    foundry.utils.setProperty(updateData, Constants.FORMULA_CHANGES_FLAG_PATH, formulaChanges);
+    ActiveEffectFormulaChangeService.#setFormulaChanges(updateData, formulaChanges);
     await effect.update(updateData, { [Constants.MODULE_ID]: { [ROLL_UPDATE_OPTION]: true } });
   }
 
@@ -230,7 +232,7 @@ export class ActiveEffectFormulaChangeService {
   }
 
   static #getFormulaForPreparedChange(change, existingFormulaChange, submittedFormulaChange) {
-    if (!change?.key || ActiveEffectFormulaChangeService.#isCustomChange(change)) {
+    if (!ActiveEffectFormulaChangeService.#isFormulaEligibleChange(change)) {
       return null;
     }
 
@@ -281,6 +283,63 @@ export class ActiveEffectFormulaChangeService {
     ));
   }
 
+  static #getSubmittedChanges(effect, updates) {
+    if (Array.isArray(updates?.changes)) {
+      return foundry.utils.deepClone(updates.changes);
+    }
+
+    if (Array.isArray(updates?.system?.changes)) {
+      return foundry.utils.deepClone(updates.system.changes);
+    }
+
+    const expanded = foundry.utils.expandObject(updates ?? {});
+    if (Array.isArray(expanded?.changes)) {
+      return foundry.utils.deepClone(expanded.changes);
+    }
+
+    if (Array.isArray(expanded?.system?.changes)) {
+      return foundry.utils.deepClone(expanded.system.changes);
+    }
+
+    const objectChanges = expanded?.changes ?? expanded?.system?.changes;
+    if (objectChanges && typeof objectChanges === "object") {
+      return ActiveEffectFormulaChangeService.#mergeIndexedChanges(effect, objectChanges);
+    }
+
+    return null;
+  }
+
+  static #mergeIndexedChanges(effect, indexedChanges) {
+    const indexes = Object.keys(indexedChanges).filter(index => /^\d+$/.test(index));
+    if (!indexes.length) {
+      return null;
+    }
+
+    const changes = foundry.utils.deepClone(effect.changes ?? []);
+    for (const index of indexes) {
+      changes[Number(index)] = {
+        ...(changes[Number(index)] ?? {}),
+        ...indexedChanges[index]
+      };
+    }
+
+    return changes;
+  }
+
+  static #setSubmittedChanges(updates, changes) {
+    if (
+      updates?.system?.changes
+      || Object.keys(updates ?? {}).some(key => key.startsWith("system.changes."))
+    ) {
+      foundry.utils.setProperty(updates, "system.changes", changes);
+      ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(updates, "system.changes.");
+      return;
+    }
+
+    updates.changes = changes;
+    ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(updates, "changes.");
+  }
+
   static #getFlattenedChangeUpdates(effect, updates) {
     const hasFlattenedKeys = updates && Object.keys(updates).some(key => key.startsWith("changes."));
     const hasObjectChanges = updates?.changes && typeof updates.changes === "object" && !Array.isArray(updates.changes);
@@ -310,9 +369,9 @@ export class ActiveEffectFormulaChangeService {
     return changes;
   }
 
-  static #clearFlattenedChangeUpdates(updates) {
+  static #clearFlattenedChangeUpdates(updates, prefix = "changes.") {
     for (const key of Object.keys(updates)) {
-      if (key.startsWith("changes.")) {
+      if (key.startsWith(prefix)) {
         delete updates[key];
       }
     }
@@ -325,6 +384,52 @@ export class ActiveEffectFormulaChangeService {
         delete updates[key];
       }
     }
+  }
+
+  static #setFormulaChanges(updates, formulaChanges, existingFormulaChanges = {}) {
+    ActiveEffectFormulaChangeService.#clearFormulaChangeUpdateValues(updates);
+
+    for (const index of Object.keys(existingFormulaChanges)) {
+      if (Object.prototype.hasOwnProperty.call(formulaChanges, index)) {
+        continue;
+      }
+
+      updates[`${Constants.FORMULA_CHANGES_FLAG_PATH}.-=${index}`] = null;
+    }
+
+    for (const [index, formulaChange] of Object.entries(formulaChanges)) {
+      foundry.utils.setProperty(updates, `${Constants.FORMULA_CHANGES_FLAG_PATH}.${index}`, formulaChange);
+    }
+  }
+
+  static #clearFormulaChanges(updates) {
+    ActiveEffectFormulaChangeService.#clearFormulaChangeUpdateValues(updates);
+    updates[`flags.${Constants.MODULE_ID}.-=${Constants.FLAG_FORMULA_CHANGES}`] = null;
+  }
+
+  static #clearFormulaChangeUpdateValues(updates) {
+    ActiveEffectFormulaChangeService.#deleteProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH);
+    delete updates[Constants.FORMULA_CHANGES_FLAG_PATH];
+    ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
+  }
+
+  static #deleteProperty(source, path) {
+    if (!source || !path) {
+      return;
+    }
+
+    const parts = path.split(".");
+    const property = parts.pop();
+    let target = source;
+
+    for (const part of parts) {
+      target = target?.[part];
+      if (!target || typeof target !== "object") {
+        return;
+      }
+    }
+
+    delete target[property];
   }
 
   static #isFormulaValue(value) {
@@ -341,6 +446,18 @@ export class ActiveEffectFormulaChangeService {
     return Number(change.mode) === CONST.ACTIVE_EFFECT_MODES.CUSTOM
       || String(change.mode ?? "").toLowerCase() === "custom"
       || String(change.type ?? "").toLowerCase() === "custom";
+  }
+
+  static #isFormulaEligibleChange(change) {
+    if (!change?.key || ActiveEffectFormulaChangeService.#isCustomChange(change)) {
+      return false;
+    }
+
+    return ![
+      Constants.MACRO_EXECUTE_CHANGE_KEY,
+      Constants.LEGACY_MACRO_EXECUTE_CHANGE_KEY,
+      Constants.DAE_MACRO_EXECUTE_CHANGE_KEY
+    ].includes(change.key);
   }
 
   static #zeroFormulaChangeValues(effect) {
@@ -380,54 +497,57 @@ export class ActiveEffectFormulaChangeService {
     }
 
     const rollData = actor.getRollData?.() ?? {};
-    const flavor = Constants.localize("SCConditionalAE.FormulaChange.RollFlavor", "Active Effect formula roll");
-    const title = `${effect.name ?? flavor} - ${change.key}`;
+    const title = ActiveEffectFormulaChangeService.#getFormulaRollTitle(effect);
+    const windowTitle = change.key ? `${title} - ${change.key}` : title;
     const BasicRoll = CONFIG.Dice?.BasicRoll;
 
-    if (!BasicRoll?.build) {
+    if (!BasicRoll?.buildConfigure || !BasicRoll?.buildEvaluate || !BasicRoll?.buildPost) {
       return ActiveEffectFormulaChangeService.#rollWithFallbackDialog({ actor, change, effect, formula });
     }
 
-    const rolls = await BasicRoll.build(
-      {
-        subject: effect,
-        rolls: [{
-          parts: [normalizedFormula],
-          data: rollData,
-          options: { activeEffect: effect.id, key: change.key }
-        }]
-      },
-      {
-        configure: true,
-        options: {
-          window: {
-            title,
-            subtitle: "DND5E.RollConfiguration.Title",
-            icon: effect.img ?? effect.icon ?? "icons/svg/d20.svg"
-          }
+    const rollConfig = {
+      subject: effect,
+      rolls: [{
+        parts: [normalizedFormula],
+        data: rollData,
+        options: { activeEffect: effect.id, key: change.key }
+      }]
+    };
+    const dialogConfig = {
+      configure: true,
+      options: {
+        window: {
+          title: windowTitle,
+          subtitle: "DND5E.RollConfiguration.Title",
+          icon: effect.img ?? effect.icon ?? "icons/svg/d20.svg"
         }
-      },
-      {
-        rollMode: BasicRoll.getMessageMode?.(),
-        data: {
-          speaker: ChatMessage.getSpeaker({ actor }),
-          flavor,
-          title,
-          flags: {
-            [Constants.MODULE_ID]: {
-              effectUuid: effect.uuid,
-              changeKey: change.key,
-              formula: String(formula ?? "")
-            }
+      }
+    };
+    const messageConfig = {
+      rollMode: BasicRoll.getMessageMode?.(),
+      data: {
+        speaker: ChatMessage.getSpeaker({ actor }),
+        title,
+        flags: {
+          [Constants.MODULE_ID]: {
+            effectUuid: effect.uuid,
+            changeKey: change.key,
+            formula: String(formula ?? "")
           }
         }
       }
-    );
+    };
+
+    const rolls = await BasicRoll.buildConfigure(rollConfig, dialogConfig, messageConfig);
+    await BasicRoll.buildEvaluate(rolls, rollConfig, messageConfig);
 
     const roll = rolls?.[0];
     if (!roll) {
       return null;
     }
+
+    messageConfig.data.content = await ActiveEffectFormulaChangeService.#buildFormulaRollCardContent({ change, effect, roll });
+    await BasicRoll.buildPost(rolls, rollConfig, messageConfig);
 
     return {
       total: roll.total
@@ -443,7 +563,7 @@ export class ActiveEffectFormulaChangeService {
     const roll = new Roll(ActiveEffectFormulaChangeService.#normalizeRollFormula(proposedFormula), actor.getRollData?.() ?? {});
     await roll.evaluate();
     await roll.toMessage({
-      flavor: Constants.localize("SCConditionalAE.FormulaChange.RollFlavor", "Active Effect formula roll"),
+      content: await ActiveEffectFormulaChangeService.#buildFormulaRollCardContent({ change, effect, roll }),
       speaker: ChatMessage.getSpeaker({ actor })
     });
     return {
@@ -454,6 +574,72 @@ export class ActiveEffectFormulaChangeService {
   static #normalizeRollFormula(formula) {
     const value = String(formula ?? "").trim();
     return value.startsWith("-") ? value.replace(/^-\s*/, "0 - ") : value;
+  }
+
+  static async #buildFormulaRollCardContent({ change, effect, roll }) {
+    const title = ActiveEffectFormulaChangeService.#escapeHtml(
+      ActiveEffectFormulaChangeService.#getFormulaRollTitle(effect)
+    );
+    const subtitle = ActiveEffectFormulaChangeService.#escapeHtml(change.key ?? "");
+    const img = ActiveEffectFormulaChangeService.#escapeHtml(
+      effect.img ?? effect.icon ?? "icons/svg/d20.svg"
+    );
+    const uuid = ActiveEffectFormulaChangeService.#escapeHtml(effect.uuid ?? "");
+
+    return `
+      <div class="chat-card item-card sc-cae-formula-roll-card" data-effect-uuid="${uuid}">
+        <section class="card-header">
+          <header class="summary">
+            <img class="gold-icon" src="${img}" alt="${title}">
+            <div class="name-stacked border">
+              <span class="title">${title}</span>
+              ${subtitle ? `<span class="subtitle">${subtitle}</span>` : ""}
+            </div>
+          </header>
+        </section>
+        ${await ActiveEffectFormulaChangeService.#renderRollContent(roll)}
+      </div>
+    `;
+  }
+
+  static async #renderRollContent(roll) {
+    if (!roll) {
+      return "";
+    }
+
+    try {
+      if (typeof roll.render === "function") {
+        return ActiveEffectFormulaChangeService.#expandRenderedRollContent(await roll.render());
+      }
+    } catch (error) {
+      console.warn(`[${Constants.MODULE_ID}] active effect formula roll render failed`, error);
+    }
+
+    const formula = ActiveEffectFormulaChangeService.#escapeHtml(roll.formula ?? "");
+    const total = ActiveEffectFormulaChangeService.#escapeHtml(roll.total ?? "");
+    return `
+      <div class="dice-roll">
+        <div class="dice-result">
+          <div class="dice-formula">${formula}</div>
+          <h4 class="dice-total">${total}</h4>
+        </div>
+      </div>
+    `;
+  }
+
+  static #expandRenderedRollContent(content) {
+    return String(content ?? "").replace(
+      /class=(["'])dice-roll(?![^"']*\bexpanded\b)/,
+      "class=$1dice-roll expanded"
+    );
+  }
+
+  static #getFormulaRollTitle(effect) {
+    return String(
+      effect.name
+      ?? effect.label
+      ?? Constants.localize("SCConditionalAE.FormulaChange.RollFlavor", "Active Effect formula roll")
+    );
   }
 
   static async #promptFormula({ actor, change, effect, formula }) {
