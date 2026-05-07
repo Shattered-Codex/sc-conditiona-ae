@@ -169,7 +169,6 @@ export class ActiveEffectFormulaChangeService {
       }
 
       change.value = String(rollResult.total);
-      formulaChange.formula = rollResult.formula;
       changed = true;
     }
 
@@ -430,9 +429,7 @@ export class ActiveEffectFormulaChangeService {
       return null;
     }
 
-    const rolledFormula = String(roll.formula ?? normalizedFormula);
     return {
-      formula: rolledFormula === normalizedFormula ? String(formula ?? "").trim() : rolledFormula,
       total: roll.total
     };
   }
@@ -450,7 +447,6 @@ export class ActiveEffectFormulaChangeService {
       speaker: ChatMessage.getSpeaker({ actor })
     });
     return {
-      formula: proposedFormula,
       total: roll.total
     };
   }
