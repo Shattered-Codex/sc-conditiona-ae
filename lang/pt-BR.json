@@ -22,7 +22,10 @@
       "DialogHint": "Confirme ou ajuste a fórmula que será rolada para este Active Effect.",
       "RollButton": "Rolar",
       "RollFlavor": "Rolagem de fórmula do Active Effect",
-      "InvalidFormula": "Fórmula inválida no Active Effect."
+      "InvalidFormula": "Fórmula inválida no Active Effect.",
+      "Column": "Fórmula",
+      "ColumnHint": "Fórmula rolada quando este Active Effect é ativado.",
+      "Placeholder": "Fórmula opcional"
     }
   }
 }

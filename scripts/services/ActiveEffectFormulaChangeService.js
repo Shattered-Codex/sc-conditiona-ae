@@ -12,6 +12,11 @@ export class ActiveEffectFormulaChangeService {
   static prepareCreateSource(effect, data) {
     const prepared = ActiveEffectFormulaChangeService.#prepareChanges(data);
     if (!prepared.changed) {
+      if (ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(ActiveEffectFormulaChangeService.#getSubmittedFormulaChanges(data))) {
+        const sourceUpdate = {};
+        foundry.utils.setProperty(sourceUpdate, Constants.FORMULA_CHANGES_FLAG_PATH, null);
+        effect.updateSource(sourceUpdate);
+      }
       return;
     }
 
@@ -25,35 +30,68 @@ export class ActiveEffectFormulaChangeService {
       return;
     }
 
+    const submittedFormulaChanges = ActiveEffectFormulaChangeService.#getSubmittedFormulaChanges(updates);
     if (Array.isArray(updates?.changes)) {
-      const prepared = ActiveEffectFormulaChangeService.#prepareChanges(updates);
+      const prepared = ActiveEffectFormulaChangeService.#prepareChanges(updates, {
+        existing: ActiveEffectFormulaChangeService.#getFormulaChanges(effect),
+        submitted: submittedFormulaChanges
+      });
       if (!prepared.changed) {
-        if (ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
+        if (
+          ActiveEffectFormulaChangeService.hasFormulaChanges(effect)
+          || ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(submittedFormulaChanges)
+        ) {
+          ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
           foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, null);
         }
         return;
       }
 
       updates.changes = prepared.changes;
+      ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
       foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
       return;
     }
 
     const flattenedChanges = ActiveEffectFormulaChangeService.#getFlattenedChangeUpdates(effect, updates);
     if (flattenedChanges) {
-      const prepared = ActiveEffectFormulaChangeService.#prepareChanges({ changes: flattenedChanges });
+      const prepared = ActiveEffectFormulaChangeService.#prepareChanges({ changes: flattenedChanges }, {
+        existing: ActiveEffectFormulaChangeService.#getFormulaChanges(effect),
+        submitted: submittedFormulaChanges
+      });
       ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(updates);
 
       if (!prepared.changed) {
         updates.changes = flattenedChanges;
-        if (ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
+        if (
+          ActiveEffectFormulaChangeService.hasFormulaChanges(effect)
+          || ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(submittedFormulaChanges)
+        ) {
+          ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
           foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, null);
         }
         return;
       }
 
       updates.changes = prepared.changes;
+      ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
       foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
+      return;
+    }
+
+    if (ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(submittedFormulaChanges)) {
+      const prepared = ActiveEffectFormulaChangeService.#prepareChanges(effect, {
+        existing: ActiveEffectFormulaChangeService.#getFormulaChanges(effect),
+        submitted: submittedFormulaChanges
+      });
+      if (prepared.changed) {
+        updates.changes = prepared.changes;
+        ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
+        foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
+      } else if (ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
+        ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
+        foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, null);
+      }
       return;
     }
 
@@ -61,6 +99,7 @@ export class ActiveEffectFormulaChangeService {
       const prepared = ActiveEffectFormulaChangeService.#prepareChanges(effect);
       if (prepared.changed) {
         updates.changes = prepared.changes;
+        ActiveEffectFormulaChangeService.#clearFlattenedFormulaChangeUpdates(updates);
         foundry.utils.setProperty(updates, Constants.FORMULA_CHANGES_FLAG_PATH, prepared.formulaChanges);
         return;
       }
@@ -118,18 +157,19 @@ export class ActiveEffectFormulaChangeService {
         continue;
       }
 
-      const total = await ActiveEffectFormulaChangeService.#promptAndRollFormula({
+      const rollResult = await ActiveEffectFormulaChangeService.#promptAndRollFormula({
         actor,
         change,
         effect,
         formula: formulaChange.formula
       });
 
-      if (total === null) {
+      if (!rollResult) {
         continue;
       }
 
-      change.value = String(total);
+      change.value = String(rollResult.total);
+      formulaChange.formula = rollResult.formula;
       changed = true;
     }
 
@@ -137,36 +177,109 @@ export class ActiveEffectFormulaChangeService {
       return;
     }
 
-    await effect.update(
-      { changes },
-      { [Constants.MODULE_ID]: { [ROLL_UPDATE_OPTION]: true } }
-    );
+    const updateData = { changes };
+    foundry.utils.setProperty(updateData, Constants.FORMULA_CHANGES_FLAG_PATH, formulaChanges);
+    await effect.update(updateData, { [Constants.MODULE_ID]: { [ROLL_UPDATE_OPTION]: true } });
   }
 
-  static #prepareChanges(source) {
+  static #prepareChanges(source, formulaChangeSources = {}) {
     const changes = foundry.utils.deepClone(source?.changes ?? []);
     if (!Array.isArray(changes) || !changes.length) {
       return { changed: false, changes, formulaChanges: {} };
     }
 
+    const existingFormulaChanges = formulaChangeSources.existing ?? {};
+    const submittedFormulaChanges = formulaChangeSources.submitted ?? {};
     const formulaChanges = {};
     let changed = false;
 
     for (let index = 0; index < changes.length; index += 1) {
       const change = changes[index];
-      if (!ActiveEffectFormulaChangeService.#isFormulaChange(change)) {
+      const existingFormulaChange = ActiveEffectFormulaChangeService.#getExistingFormulaChange(index, change, existingFormulaChanges);
+      const submittedFormulaChange = submittedFormulaChanges[index] ?? {};
+      const formula = ActiveEffectFormulaChangeService.#getFormulaForPreparedChange(
+        change,
+        existingFormulaChange,
+        submittedFormulaChange
+      );
+      if (!formula) {
         continue;
       }
 
       formulaChanges[index] = {
-        formula: String(change.value).trim(),
+        formula,
         key: change.key
       };
-      change.value = "0";
+      if (ActiveEffectFormulaChangeService.#shouldResetFormulaBackedValue(change.value)) {
+        change.value = "0";
+      }
       changed = true;
     }
 
     return { changed, changes, formulaChanges };
+  }
+
+  static #getExistingFormulaChange(index, change, existingFormulaChanges) {
+    const indexed = existingFormulaChanges[index] ?? {};
+    if (ActiveEffectFormulaChangeService.#isCompatibleStoredFormula(change, indexed)) {
+      return indexed;
+    }
+
+    return Object.values(existingFormulaChanges).find(formulaChange => (
+      ActiveEffectFormulaChangeService.#isCompatibleStoredFormula(change, formulaChange)
+    )) ?? {};
+  }
+
+  static #getFormulaForPreparedChange(change, existingFormulaChange, submittedFormulaChange) {
+    if (!change?.key || ActiveEffectFormulaChangeService.#isCustomChange(change)) {
+      return null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(submittedFormulaChange ?? {}, "formula")) {
+      const formula = String(submittedFormulaChange.formula ?? "").trim();
+      return formula.length ? formula : null;
+    }
+
+    if (ActiveEffectFormulaChangeService.#isCompatibleStoredFormula(change, submittedFormulaChange)) {
+      return String(submittedFormulaChange.formula).trim();
+    }
+
+    if (ActiveEffectFormulaChangeService.#isCompatibleStoredFormula(change, existingFormulaChange)) {
+      return String(existingFormulaChange.formula).trim();
+    }
+
+    if (ActiveEffectFormulaChangeService.#isFormulaValue(change.value)) {
+      return String(change.value).trim();
+    }
+
+    return null;
+  }
+
+  static #isCompatibleStoredFormula(change, formulaChange) {
+    const formula = String(formulaChange?.formula ?? "").trim();
+    if (!formula.length) {
+      return false;
+    }
+
+    return !formulaChange?.key || formulaChange.key === change.key;
+  }
+
+  static #getSubmittedFormulaChanges(updates) {
+    const direct = foundry.utils.getProperty(updates ?? {}, Constants.FORMULA_CHANGES_FLAG_PATH);
+    if (direct) {
+      return direct;
+    }
+
+    return foundry.utils.getProperty(
+      foundry.utils.expandObject(updates ?? {}),
+      Constants.FORMULA_CHANGES_FLAG_PATH
+    ) ?? {};
+  }
+
+  static #hasSubmittedFormulaChanges(formulaChanges) {
+    return Object.values(formulaChanges ?? {}).some(formulaChange => (
+      Object.prototype.hasOwnProperty.call(formulaChange ?? {}, "formula")
+    ));
   }
 
   static #getFlattenedChangeUpdates(effect, updates) {
@@ -206,13 +319,23 @@ export class ActiveEffectFormulaChangeService {
     }
   }
 
-  static #isFormulaChange(change) {
-    if (!change?.key || ActiveEffectFormulaChangeService.#isCustomChange(change)) {
-      return false;
+  static #clearFlattenedFormulaChangeUpdates(updates) {
+    const prefix = `${Constants.FORMULA_CHANGES_FLAG_PATH}.`;
+    for (const key of Object.keys(updates)) {
+      if (key.startsWith(prefix)) {
+        delete updates[key];
+      }
     }
+  }
 
-    const value = String(change.value ?? "").trim();
+  static #isFormulaValue(value) {
+    value = String(value ?? "").trim();
     return DICE_FORMULA_PATTERN.test(value);
+  }
+
+  static #shouldResetFormulaBackedValue(value) {
+    value = String(value ?? "").trim();
+    return !value.length || ActiveEffectFormulaChangeService.#isFormulaValue(value);
   }
 
   static #isCustomChange(change) {
@@ -233,7 +356,10 @@ export class ActiveEffectFormulaChangeService {
   }
 
   static #getFormulaChanges(effect) {
-    return foundry.utils.deepClone(effect?.getFlag?.(Constants.MODULE_ID, Constants.FLAG_FORMULA_CHANGES) ?? {});
+    const formulaChanges = foundry.utils.deepClone(effect?.getFlag?.(Constants.MODULE_ID, Constants.FLAG_FORMULA_CHANGES) ?? {});
+    return Object.fromEntries(Object.entries(formulaChanges).filter(([_index, formulaChange]) => (
+      String(formulaChange?.formula ?? "").trim().length
+    )));
   }
 
   static async #promptAndRollFormula({ actor, change, effect, formula }) {
@@ -299,7 +425,16 @@ export class ActiveEffectFormulaChangeService {
       }
     );
 
-    return rolls?.[0]?.total ?? null;
+    const roll = rolls?.[0];
+    if (!roll) {
+      return null;
+    }
+
+    const rolledFormula = String(roll.formula ?? normalizedFormula);
+    return {
+      formula: rolledFormula === normalizedFormula ? String(formula ?? "").trim() : rolledFormula,
+      total: roll.total
+    };
   }
 
   static async #rollWithFallbackDialog({ actor, change, effect, formula }) {
@@ -314,7 +449,10 @@ export class ActiveEffectFormulaChangeService {
       flavor: Constants.localize("SCConditionalAE.FormulaChange.RollFlavor", "Active Effect formula roll"),
       speaker: ChatMessage.getSpeaker({ actor })
     });
-    return roll.total;
+    return {
+      formula: proposedFormula,
+      total: roll.total
+    };
   }
 
   static #normalizeRollFormula(formula) {

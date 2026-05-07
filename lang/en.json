@@ -22,7 +22,10 @@
       "DialogHint": "Confirm or edit the formula to roll for this Active Effect.",
       "RollButton": "Roll",
       "RollFlavor": "Active Effect formula roll",
-      "InvalidFormula": "Invalid Active Effect formula."
+      "InvalidFormula": "Invalid Active Effect formula.",
+      "Column": "Formula",
+      "ColumnHint": "Formula rolled when this Active Effect is activated.",
+      "Placeholder": "Optional formula"
     }
   }
 }

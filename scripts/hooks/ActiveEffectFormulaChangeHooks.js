@@ -37,9 +37,7 @@ export class ActiveEffectFormulaChangeHooks {
       return;
     }
 
-    const reactivated = updates?.disabled === false;
-    const formulaChangesEdited = Array.isArray(updates?.changes) && ActiveEffectFormulaChangeService.hasFormulaChanges(effect);
-    if (!reactivated && !formulaChangesEdited) {
+    if (updates?.disabled !== false) {
       return;
     }
 

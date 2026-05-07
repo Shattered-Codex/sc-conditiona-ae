@@ -1,5 +1,6 @@
 import { Constants } from "./constants/Constants.js";
 import { ActiveEffectSheetRegistrar } from "./applications/ActiveEffectSheetRegistrar.js";
+import { activateFormulaColumnRenderHook } from "./applications/ConditionalActiveEffectSheetMixin.js";
 import { AuraEffectsCompatibility } from "./compat/AuraEffectsCompatibility.js";
 import { DaeCompatibility } from "./compat/DaeCompatibility.js";
 import { ActiveEffectConditionHooks } from "./hooks/ActiveEffectConditionHooks.js";
@@ -29,6 +30,7 @@ Hooks.once("setup", () => {
   ActiveEffectConditionHooks.activate();
   ActiveEffectFormulaChangeHooks.activate();
   ActiveEffectMacroChangeHooks.activate();
+  activateFormulaColumnRenderHook();
 });
 
 Hooks.once("ready", () => {

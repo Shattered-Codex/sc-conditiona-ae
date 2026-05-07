@@ -24,3 +24,62 @@
 .sc-cae-validation-warning {
   margin: 0;
 }
+
+.sc-cae-formula-cell {
+  min-width: 0;
+  vertical-align: top;
+}
+
+.sc-cae-formula-header,
+.sc-cae-formula-column {
+  min-width: 0;
+}
+
+.sc-cae-formula-column {
+  align-self: start;
+}
+
+.sc-cae-formula-input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.active-effect-config .tab.changes.sc-cae-formula-section {
+  overflow-y: visible;
+}
+
+.active-effect-config section.changes.sc-cae-formula-section header,
+.active-effect-config section.changes.sc-cae-formula-section ol,
+.active-effect-config section[data-tab="changes"].sc-cae-formula-section header,
+.active-effect-config section[data-tab="changes"].sc-cae-formula-section ol {
+  grid-template-columns:
+    minmax(0, 2fr)
+    minmax(60px, 0.85fr)
+    minmax(60px, 0.9fr)
+    minmax(52px, 0.65fr)
+    minmax(48px, 0.65fr)
+    1rem;
+}
+
+.active-effect-config section.changes.sc-cae-formula-section header > *,
+.active-effect-config section.changes.sc-cae-formula-section .sc-cae-formula-row > *,
+.active-effect-config section[data-tab="changes"].sc-cae-formula-section header > *,
+.active-effect-config section[data-tab="changes"].sc-cae-formula-section .sc-cae-formula-row > * {
+  min-width: 0;
+}
+
+.active-effect-config section.changes.sc-cae-formula-section .sc-cae-formula-row input,
+.active-effect-config section.changes.sc-cae-formula-section .sc-cae-formula-row select,
+.active-effect-config section[data-tab="changes"].sc-cae-formula-section .sc-cae-formula-row input,
+.active-effect-config section[data-tab="changes"].sc-cae-formula-section .sc-cae-formula-row select {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+
+.active-effect-config section.changes.sc-cae-formula-section header .sc-cae-formula-header,
+.active-effect-config section[data-tab="changes"].sc-cae-formula-section header .sc-cae-formula-header {
+  align-self: center;
+  font-weight: 700;
+}
