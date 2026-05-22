@@ -55,7 +55,6 @@ export function ConditionalActiveEffectSheetMixin(ActiveEffectSheet) {
     }
 
     _processSubmitData(...args) {
-      cleanSubmitData(this, findSubmitDataArgument(args));
       return typeof super._processSubmitData === "function"
         ? super._processSubmitData(...args)
         : this.document.update(findSubmitDataArgument(args));

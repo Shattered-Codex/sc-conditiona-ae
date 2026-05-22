@@ -294,7 +294,6 @@ export class FormulaColumnRenderer {
   }
 
   static #getChangeIndexFromName(name) {
-    return String(name ?? "").match(/(?:^|\.)changes(?:\.|\[)(\d+)/)?.[1]
-      ?? String(name ?? "").match(/^changes(?:\.|\[)(\d+)/)?.[1];
+    return String(name ?? "").match(/(?:^|\.)changes(?:\.|\[)(\d+)/)?.[1];
   }
 }

@@ -653,33 +653,29 @@ export class ActiveEffectFormulaChangeService {
       <input type="text" name="formula" value="${escapedFormula}" autofocus />
     `;
 
-    return ActiveEffectFormulaChangeService.#promptFormulaLegacy(title, content);
+    return ActiveEffectFormulaChangeService.#promptFormulaV2(title, content);
   }
 
-  static #promptFormulaLegacy(title, content) {
-    return new Promise(resolve => {
-      new Dialog({
-        title,
-        content,
-        buttons: {
-          roll: {
-            label: Constants.localize("SCConditionalAE.FormulaChange.RollButton", "Roll"),
-            callback: html => resolve(ActiveEffectFormulaChangeService.#getLegacyDialogFormula(html))
-          },
-          cancel: {
-            label: Constants.localize("Cancel", "Cancel"),
-            callback: () => resolve(null)
-          }
+  static #promptFormulaV2(title, content) {
+    return foundry.applications.api.DialogV2.wait({
+      window: { title },
+      content,
+      rejectClose: false,
+      buttons: [
+        {
+          action: "roll",
+          label: Constants.localize("SCConditionalAE.FormulaChange.RollButton", "Roll"),
+          default: true,
+          callback: (_event, _button, dialog) =>
+            dialog.element?.querySelector("input[name='formula']")?.value?.trim() || null
         },
-        default: "roll",
-        close: () => resolve(null)
-      }).render(true);
+        {
+          action: "cancel",
+          label: Constants.localize("Cancel", "Cancel"),
+          callback: () => null
+        }
+      ]
     });
-  }
-
-  static #getLegacyDialogFormula(html) {
-    const element = html instanceof HTMLElement ? html : html?.[0];
-    return element?.querySelector("input[name='formula']")?.value?.trim() ?? null;
   }
 
   static #escapeHtml(value) {
