@@ -62,23 +62,30 @@ export class ActiveEffectFormulaChatCardService {
       return;
     }
 
+    const changeIndex = button.dataset.changeIndex;
     button.disabled = true;
     button.classList.add("loading");
 
     try {
-      const rolled = await ActiveEffectFormulaChangeService.rollFormulaChanges(effect);
-      if (!rolled) {
-        button.disabled = false;
-      }
+      await (
+        changeIndex === undefined
+          ? ActiveEffectFormulaChangeService.rollFormulaChanges(effect)
+          : ActiveEffectFormulaChangeService.rollFormulaChange(effect, changeIndex)
+      );
     } catch (error) {
       console.warn(`[${Constants.MODULE_ID}] formula chat card roll failed`, error);
-      button.disabled = false;
     } finally {
+      button.disabled = false;
       button.classList.remove("loading");
     }
   }
 
   static async #postChatCard(effect, reason) {
+    const formulaEntries = ActiveEffectFormulaChangeService.getFormulaChangeEntries(effect);
+    if (!formulaEntries.length) {
+      return;
+    }
+
     const actor = ActiveEffectFormulaChatCardService.#getActor(effect);
     const title = ActiveEffectFormulaChatCardService.#escapeHtml(
       Constants.localize("SCConditionalAE.FormulaChange.ChatCardTitle", "Formula roll available")
@@ -89,18 +96,22 @@ export class ActiveEffectFormulaChatCardService {
       effect.img ?? effect.icon ?? "icons/svg/d20.svg"
     );
     const effectUuid = ActiveEffectFormulaChatCardService.#escapeHtml(effect.uuid ?? "");
+    const rawEffectName = String(effect.name ?? "").trim();
     const hint = ActiveEffectFormulaChatCardService.#escapeHtml(
-      Constants.localize(
-        "SCConditionalAE.FormulaChange.ChatCardHint",
-        "This Active Effect has formula-backed changes ready to roll."
-      )
+      ActiveEffectFormulaChatCardService.#getIntroLabel(reason, rawEffectName || title)
     );
     const reasonText = ActiveEffectFormulaChatCardService.#escapeHtml(
-      ActiveEffectFormulaChatCardService.#getReasonLabel(reason)
+      ActiveEffectFormulaChatCardService.#getReasonLabel(reason, rawEffectName || "This effect")
+    );
+    const prompt = ActiveEffectFormulaChatCardService.#escapeHtml(
+      Constants.localize("SCConditionalAE.FormulaChange.ChatCardPrompt", "Do you want to roll them now?")
     );
     const buttonLabel = ActiveEffectFormulaChatCardService.#escapeHtml(
-      Constants.localize("SCConditionalAE.FormulaChange.ChatCardButton", "Roll formulas")
+      Constants.localize("SCConditionalAE.FormulaChange.ChatCardButton", "Roll all formulas")
     );
+    const listHtml = formulaEntries
+      .map(formulaEntry => ActiveEffectFormulaChatCardService.#buildFormulaEntryHtml(effectUuid, formulaEntry))
+      .join("");
 
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker(actor ? { actor } : {}),
@@ -116,13 +127,19 @@ export class ActiveEffectFormulaChatCardService {
             </header>
           </section>
           <div class="card-content">
-            <p>${hint}</p>
+            <p class="sc-cae-formula-request-intro">${hint}</p>
             <p class="sc-cae-formula-request-reason">${reasonText}</p>
-            <button
-              type="button"
-              class="sc-cae-formula-request-button"
-              data-effect-uuid="${effectUuid}"
-            >${buttonLabel}</button>
+            <p class="sc-cae-formula-request-prompt">${prompt}</p>
+            <div class="sc-cae-formula-request-list" role="list">
+              ${listHtml}
+            </div>
+            <div class="sc-cae-formula-request-actions">
+              <button
+                type="button"
+                class="sc-cae-formula-request-button"
+                data-effect-uuid="${effectUuid}"
+              >${buttonLabel}</button>
+            </div>
           </div>
         </div>
       `,
@@ -137,18 +154,80 @@ export class ActiveEffectFormulaChatCardService {
     });
   }
 
-  static #getReasonLabel(reason) {
+  static #buildFormulaEntryHtml(effectUuid, formulaEntry) {
+    const keyLabel = ActiveEffectFormulaChatCardService.#escapeHtml(
+      Constants.localize("SCConditionalAE.FormulaChange.ChatCardAttributeKeyLabel", "Attribute Key")
+    );
+    const currentValueLabel = ActiveEffectFormulaChatCardService.#escapeHtml(
+      Constants.localize("SCConditionalAE.FormulaChange.ChatCardCurrentValueLabel", "Current Value")
+    );
+    const formulaLabel = ActiveEffectFormulaChatCardService.#escapeHtml(
+      Constants.localize("SCConditionalAE.FormulaChange.ChatCardFormulaLabel", "Formula")
+    );
+    const rollLabel = ActiveEffectFormulaChatCardService.#escapeHtml(
+      Constants.localize("SCConditionalAE.FormulaChange.RollButton", "Roll")
+    );
+    const displayKey = ActiveEffectFormulaChatCardService.#escapeHtml(
+      formulaEntry.key || ActiveEffectFormulaChatCardService.#getFallbackChangeLabel(formulaEntry.index)
+    );
+    const currentValue = ActiveEffectFormulaChatCardService.#escapeHtml(formulaEntry.currentValue || "0");
+    const formula = ActiveEffectFormulaChatCardService.#escapeHtml(formulaEntry.formula);
+
+    return `
+      <div class="sc-cae-formula-request-entry" role="listitem">
+        <div class="sc-cae-formula-request-entry-copy">
+          <span class="sc-cae-formula-request-entry-label">${keyLabel}</span>
+          <span class="sc-cae-formula-request-entry-key">${displayKey}</span>
+          <span class="sc-cae-formula-request-entry-label">${currentValueLabel}</span>
+          <code class="sc-cae-formula-request-entry-value sc-cae-formula-request-entry-value--current">${currentValue}</code>
+          <span class="sc-cae-formula-request-entry-label">${formulaLabel}</span>
+          <code class="sc-cae-formula-request-entry-value sc-cae-formula-request-entry-value--formula">${formula}</code>
+        </div>
+        <button
+          type="button"
+          class="sc-cae-formula-request-button sc-cae-formula-request-button--inline"
+          data-effect-uuid="${effectUuid}"
+          data-change-index="${formulaEntry.index}"
+        >${rollLabel}</button>
+      </div>
+    `;
+  }
+
+  static #getReasonLabel(reason, effectName) {
     if (reason === "condition") {
-      return Constants.localize(
+      return ActiveEffectFormulaChatCardService.#localizeFormat(
         "SCConditionalAE.FormulaChange.ChatCardReasonCondition",
-        "Triggered because the condition became true."
+        "{effect} is ready, and its formulas can be rolled now.",
+        { effect: effectName }
       );
     }
 
-    return Constants.localize(
+    return ActiveEffectFormulaChatCardService.#localizeFormat(
       "SCConditionalAE.FormulaChange.ChatCardReasonActivation",
-      "Triggered because the Active Effect was activated."
+      "{effect} is active, and its formulas can be rolled now.",
+      { effect: effectName }
     );
+  }
+
+  static #getIntroLabel(reason, effectName) {
+    if (reason === "condition") {
+      return ActiveEffectFormulaChatCardService.#localizeFormat(
+        "SCConditionalAE.FormulaChange.ChatCardIntroCondition",
+        "The condition for {effect} has been met.",
+        { effect: effectName }
+      );
+    }
+
+    return ActiveEffectFormulaChatCardService.#localizeFormat(
+      "SCConditionalAE.FormulaChange.ChatCardIntroActivation",
+      "{effect} has just been activated.",
+      { effect: effectName }
+    );
+  }
+
+  static #getFallbackChangeLabel(index) {
+    const baseLabel = Constants.localize("SCConditionalAE.FormulaChange.ChatCardUnnamedKey", "Change");
+    return `${baseLabel} ${Number(index) + 1}`;
   }
 
   static #getActor(effect) {
@@ -168,5 +247,16 @@ export class ActiveEffectFormulaChatCardService {
     const element = document.createElement("div");
     element.textContent = String(value ?? "");
     return element.innerHTML;
+  }
+
+  static #localizeFormat(key, fallback, data) {
+    if (typeof game?.i18n?.format === "function") {
+      const formatted = game.i18n.format(key, data);
+      if (formatted && formatted !== key) {
+        return formatted;
+      }
+    }
+
+    return String(fallback ?? key).replace(/\{(\w+)\}/g, (_match, token) => String(data?.[token] ?? ""));
   }
 }

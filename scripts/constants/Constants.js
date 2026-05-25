@@ -4,8 +4,11 @@ export class Constants {
   static PATREON_URL = "https://www.patreon.com/c/shatteredcodex?utm_source=sc-conditional-ae&utm_medium=foundry_module&utm_campaign=support_button";
   static FLAG_CONDITION = "condition";
   static FLAG_FORMULA_CHANGES = "formulaChanges";
+  static FLAG_CONDITION_BADGE_LABEL = "conditionBadgeLabel";
   static CONDITION_FLAG_PATH = `flags.${Constants.MODULE_ID}.${Constants.FLAG_CONDITION}`;
   static FORMULA_CHANGES_FLAG_PATH = `flags.${Constants.MODULE_ID}.${Constants.FLAG_FORMULA_CHANGES}`;
+  static CONDITION_BADGE_LABEL_FLAG_PATH = `flags.${Constants.MODULE_ID}.${Constants.FLAG_CONDITION_BADGE_LABEL}`;
+  static CONDITION_BADGE_LABEL_MAX_LENGTH = 45;
   static DAE_CONDITION_FLAG_PATH = "flags.dae.enableCondition";
   static DAE_DISABLE_CONDITION_FLAG_PATH = "flags.dae.disableCondition";
   static DAE_CONDITION_PREFIX = "dae:";

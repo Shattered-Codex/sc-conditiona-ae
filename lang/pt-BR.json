@@ -21,7 +21,10 @@
         "EffectState": "Estado do efeito"
       },
       "Wiki": "Abrir wiki",
-      "Invalid": "Esta condição contém código inválido."
+      "Invalid": "Esta condição contém código inválido.",
+      "BadgeLabel": "Label do badge de condição",
+      "BadgeLabelHint": "Texto de linha única exibido nos efeitos inativos. Deixe em branco para ocultar.",
+      "BadgeLabelPlaceholder": "ex: Condição não atendida"
     },
     "MacroChange": {
       "Name": "Macro para executar",
@@ -32,11 +35,18 @@
       "DialogTitle": "Rolar fórmula do Active Effect",
       "DialogHint": "Confirme ou ajuste a fórmula que será rolada para este Active Effect.",
       "RollButton": "Rolar",
-      "ChatCardButton": "Rolar fórmulas",
+      "ChatCardButton": "Rolar todas as fórmulas",
       "ChatCardTitle": "Rolagem de fórmula disponível",
-      "ChatCardHint": "Este Active Effect tem changes com fórmula prontos para rolar.",
-      "ChatCardReasonActivation": "Disparado porque o Active Effect foi ativado.",
-      "ChatCardReasonCondition": "Disparado porque a condição se tornou true.",
+      "ChatCardHint": "As fórmulas deste efeito estão prontas para rolar.",
+      "ChatCardIntroActivation": "{effect} acabou de ser ativado.",
+      "ChatCardIntroCondition": "A condição para {effect} foi satisfeita.",
+      "ChatCardPrompt": "Deseja rolar agora?",
+      "ChatCardReasonActivation": "{effect} já pode ter seus dados rolados.",
+      "ChatCardReasonCondition": "{effect} está pronto, e as fórmulas dele já podem ser roladas.",
+      "ChatCardAttributeKeyLabel": "Attribute Key",
+      "ChatCardCurrentValueLabel": "Valor atual",
+      "ChatCardFormulaLabel": "Fórmula",
+      "ChatCardUnnamedKey": "Alteração",
       "RollAllLabel": "Rolar todas as fórmulas",
       "RollAllUnavailableLabel": "As fórmulas não estão disponíveis agora",
       "RollFlavor": "Rolagem de fórmula do Active Effect",
@@ -52,11 +62,12 @@
       },
       "UseFormulaChatCard": {
         "Name": "Enviar card de rolagem da fórmula",
-        "Hint": "Quando um efeito condicional ficar disponível ou um Active Effect com fórmula for ativado, envia um card no chat com botão para rolar em vez de rolar imediatamente."
+        "Hint": "Sempre que um efeito condicional passar a ficar disponível, ou quando um Active Effect com fórmula for ativado, envia um card no chat para você decidir quando rolar."
       },
       "ShowConditionTab": {
         "Name": "Exibir aba de condição",
-        "Hint": "Adiciona a aba Condição às janelas de configuração de Active Effect."
+        "Hint": "Adiciona a aba Condição às janelas de configuração de Active Effect.",
+        "DaeNotice": "Se você usa Dynamic Active Effects (DAE) com a aba de condição habilitada, um aviso de conflito do libWrapper pode aparecer no console do navegador. Isso é esperado — o módulo intencionalmente bloqueia a aplicação de efeitos quando a condição não está disponível, o que também ignora o wrapper do DAE nesses casos. Você pode ignorar esse aviso com segurança."
       },
       "DebugLogging": {
         "Name": "Habilitar logs de debug",

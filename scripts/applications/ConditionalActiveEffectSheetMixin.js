@@ -63,6 +63,7 @@ export function ConditionalActiveEffectSheetMixin(ActiveEffectSheet) {
     _onRender(...args) {
       super._onRender?.(...args);
       ensureMinimumSheetWidth(this);
+      activateBadgeLabelCounter(this);
       if (ModuleSettings.isFormulaChangesEnabled()) {
         FormulaColumnRenderer.scheduleRender(this);
         FormulaColumnRenderer.activateObserver(this);
@@ -169,18 +170,44 @@ function getExtendedTabs(tabs) {
   };
 }
 
+function activateBadgeLabelCounter(sheet) {
+  const root = FormulaColumnRenderer.getSheetRoot(sheet) ?? sheet.element;
+  if (!root) {
+    return;
+  }
+
+  const input = root.querySelector(".sc-cae-badge-label-input");
+  const counter = root.querySelector(".sc-cae-badge-label-counter");
+  if (!input || !counter) {
+    return;
+  }
+
+  const maxLength = Constants.CONDITION_BADGE_LABEL_MAX_LENGTH;
+  counter.textContent = `${input.value.length}/${maxLength}`;
+  input.addEventListener("input", () => {
+    counter.textContent = `${input.value.length}/${maxLength}`;
+  });
+}
+
 function buildConditionContext(sheet, context) {
   const condition = ActiveEffectConditionService.getCondition(sheet.document);
   const conditionInputValue = DaeCompatibility.toDisplayCondition(condition);
   const validation = ActiveEffectConditionService.validateCondition(condition);
   const usesDaeCompatibility = DaeCompatibility.isCompatibilityCondition(condition);
   const evaluation = buildConditionEvaluationContext(sheet, condition, validation);
+  const conditionBadgeLabel = String(
+    foundry.utils.getProperty(sheet.document ?? {}, Constants.CONDITION_BADGE_LABEL_FLAG_PATH) ?? ""
+  );
 
   return {
     tab: getConditionTab(sheet, context),
     condition,
     conditionInputValue,
     conditionFlagPath: Constants.CONDITION_FLAG_PATH,
+    conditionBadgeLabel,
+    conditionBadgeLabelLength: conditionBadgeLabel.length,
+    conditionBadgeLabelFlagPath: Constants.CONDITION_BADGE_LABEL_FLAG_PATH,
+    badgeLabelMaxLength: Constants.CONDITION_BADGE_LABEL_MAX_LENGTH,
     conditionWikiUrl: `${Constants.MODULE_WIKI_URL}#active-effect-condition`,
     conditionInvalid: !validation.valid,
     validationMessage: validation.error?.message ?? "",
@@ -227,7 +254,16 @@ function buildConditionContext(sheet, context) {
       evaluationContext: Constants.localize("SCConditionalAE.ConditionTab.Evaluation.Context", "Evaluated against"),
       evaluationEffectState: Constants.localize("SCConditionalAE.ConditionTab.Evaluation.EffectState", "Effect state"),
       wiki: Constants.localize("SCConditionalAE.ConditionTab.Wiki", "Open wiki"),
-      invalid: Constants.localize("SCConditionalAE.ConditionTab.Invalid", "This condition has invalid code.")
+      invalid: Constants.localize("SCConditionalAE.ConditionTab.Invalid", "This condition has invalid code."),
+      badgeLabel: Constants.localize("SCConditionalAE.ConditionTab.BadgeLabel", "Condition badge label"),
+      badgeLabelHint: Constants.localize(
+        "SCConditionalAE.ConditionTab.BadgeLabelHint",
+        "Single-line label shown on inactive effects. Leave blank to hide."
+      ),
+      badgeLabelPlaceholder: Constants.localize(
+        "SCConditionalAE.ConditionTab.BadgeLabelPlaceholder",
+        "e.g. Condition not met"
+      )
     }
   };
 }

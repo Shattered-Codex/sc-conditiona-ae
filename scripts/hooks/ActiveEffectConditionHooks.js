@@ -10,6 +10,7 @@ export class ActiveEffectConditionHooks {
   static #effectApplicationPatched = false;
   static #effectRefreshHooksRegistered = false;
   static #pendingActorRefreshes = new Map();
+  static #cachedConditionAvailability = new Map();
   static #refreshFlushScheduled = false;
   static #readyRefreshScheduled = false;
 
@@ -29,7 +30,68 @@ export class ActiveEffectConditionHooks {
     }
 
     ActiveEffectConditionHooks.#effectApplicationPatched = true;
+
+    if (ActiveEffectConditionHooks.#registerEffectApplicationLibWrapper()) {
+      return;
+    }
+
+    if (game.modules?.get("lib-wrapper")?.active) {
+      Hooks.once("libWrapper.Ready", () => {
+        if (!ActiveEffectConditionHooks.#registerEffectApplicationLibWrapper()) {
+          ActiveEffectConditionHooks.#patchEffectApplicationFallback();
+        }
+      });
+      return;
+    }
+
     ActiveEffectConditionHooks.#patchEffectApplicationFallback();
+  }
+
+  static #registerEffectApplicationLibWrapper() {
+    const libWrapper = globalThis.libWrapper;
+    if (typeof libWrapper?.register !== "function") {
+      return false;
+    }
+
+    let registered = false;
+
+    if (ActiveEffectConditionHooks.#hasTargetMethod("CONFIG.ActiveEffect.documentClass.applyChange")) {
+      libWrapper.register(
+        Constants.MODULE_ID,
+        "CONFIG.ActiveEffect.documentClass.applyChange",
+        function(wrapped, model, change, options) {
+          if (ActiveEffectConditionHooks.#shouldSkipChangeApplication(change?.effect, model)) {
+            return {};
+          }
+
+          return wrapped(model, change, options);
+        },
+        "MIXED"
+      );
+      registered = true;
+    }
+
+    if (ActiveEffectConditionHooks.#hasTargetMethod("CONFIG.ActiveEffect.documentClass.prototype.apply")) {
+      libWrapper.register(
+        Constants.MODULE_ID,
+        "CONFIG.ActiveEffect.documentClass.prototype.apply",
+        function(wrapped, model, change, ...args) {
+          if (ActiveEffectConditionHooks.#shouldSkipChangeApplication(change?.effect ?? this, model)) {
+            return {};
+          }
+
+          return wrapped.call(this, model, change, ...args);
+        },
+        "MIXED"
+      );
+      registered = true;
+    }
+
+    if (registered) {
+      ActiveEffectConditionHooks.#debug("registered Active Effect wrappers with libWrapper");
+    }
+
+    return registered;
   }
 
   static #patchEffectApplicationFallback() {
@@ -56,6 +118,8 @@ export class ActiveEffectConditionHooks {
         return originalApply.call(this, model, change, ...args);
       };
     }
+
+    ActiveEffectConditionHooks.#debug("registered Active Effect wrappers with fallback patching");
   }
 
   static #registerEffectRefreshHooks() {
@@ -67,6 +131,10 @@ export class ActiveEffectConditionHooks {
     Hooks.on("createActiveEffect", ActiveEffectConditionHooks.#onActiveEffectChanged);
     Hooks.on("updateActiveEffect", ActiveEffectConditionHooks.#onActiveEffectChanged);
     Hooks.on("deleteActiveEffect", ActiveEffectConditionHooks.#onActiveEffectChanged);
+    Hooks.on("updateActor", ActiveEffectConditionHooks.#onActorChanged);
+    Hooks.on("createItem", ActiveEffectConditionHooks.#onItemChanged);
+    Hooks.on("updateItem", ActiveEffectConditionHooks.#onItemChanged);
+    Hooks.on("deleteItem", ActiveEffectConditionHooks.#onItemChanged);
   }
 
   static #scheduleReadyRefresh() {
@@ -98,6 +166,39 @@ export class ActiveEffectConditionHooks {
     ActiveEffectConditionHooks.#debug("active effect changed; scheduling conditional refresh", {
       actor: actor.uuid,
       effect: effect?.uuid ?? effect?.id ?? null
+    });
+    ActiveEffectConditionHooks.#scheduleActorRefresh(actor);
+  }
+
+  static #onActorChanged(actor) {
+    if (
+      !(actor instanceof CONFIG.Actor.documentClass)
+      || !ActiveEffectConditionHooks.#actorHasConditionedEffects(actor)
+    ) {
+      return;
+    }
+
+    ActiveEffectConditionHooks.#debug("actor changed; scheduling conditional refresh", {
+      actor: actor.uuid
+    });
+    ActiveEffectConditionHooks.#scheduleActorRefresh(actor);
+  }
+
+  static #onItemChanged(item) {
+    const actor = item?.actor ?? item?.parent;
+    if (
+      !(actor instanceof CONFIG.Actor.documentClass)
+      || (
+        !ActiveEffectConditionHooks.#itemHasConditionedEffects(item)
+        && !ActiveEffectConditionHooks.#actorHasConditionedEffects(actor)
+      )
+    ) {
+      return;
+    }
+
+    ActiveEffectConditionHooks.#debug("owned item changed; scheduling conditional refresh", {
+      actor: actor.uuid,
+      item: item?.uuid ?? item?.id ?? null
     });
     ActiveEffectConditionHooks.#scheduleActorRefresh(actor);
   }
@@ -158,7 +259,7 @@ export class ActiveEffectConditionHooks {
     }
 
     const previousConditionState = triggerConditionalActivation
-      ? ActiveEffectConditionHooks.#snapshotConditionalEffectState(actor)
+      ? ActiveEffectConditionHooks.#getCachedConditionalEffectState(actor)
       : null;
     let refreshed = false;
     try {
@@ -183,6 +284,7 @@ export class ActiveEffectConditionHooks {
       if (previousConditionState) {
         ActiveEffectConditionHooks.#handleConditionalActivations(actor, previousConditionState);
       }
+      ActiveEffectConditionHooks.#cacheConditionalEffectState(actor);
       ActiveEffectConditionHooks.#renderActorApplications(actor);
     }
   }
@@ -193,6 +295,14 @@ export class ActiveEffectConditionHooks {
     }
 
     return ActiveEffectConditionHooks.#getConditionalEffects(actor).length > 0;
+  }
+
+  static #itemHasConditionedEffects(item) {
+    if (!(item instanceof CONFIG.Item.documentClass)) {
+      return false;
+    }
+
+    return (item.effects ?? []).some(effect => ActiveEffectConditionService.hasCondition(effect));
   }
 
   static #renderActorApplications(actor) {
@@ -235,25 +345,31 @@ export class ActiveEffectConditionHooks {
     application.render(true);
   }
 
-  static #snapshotConditionalEffectState(actor) {
+  static #getCachedConditionalEffectState(actor) {
+    const cachedState = ActiveEffectConditionHooks.#cachedConditionAvailability.get(actor.uuid);
+    return cachedState ? new Map(cachedState) : null;
+  }
+
+  static #cacheConditionalEffectState(actor) {
     const state = new Map();
 
     for (const effect of ActiveEffectConditionHooks.#getConditionalEffects(actor)) {
-      state.set(effect.uuid, {
-        available: ActiveEffectConditionHooks.#isConditionAvailable(effect, actor),
-        hasFormulaChanges: ModuleSettings.isFormulaChangesEnabled()
-          && ActiveEffectFormulaChangeService.hasFormulaChanges(effect),
-        hasExecutableMacro: ActiveEffectMacroChangeService.hasExecutableMacro(effect)
-      });
+      state.set(effect.uuid, ActiveEffectConditionHooks.#isConditionAvailable(effect, actor));
     }
 
-    return state;
+    if (!state.size) {
+      ActiveEffectConditionHooks.#cachedConditionAvailability.delete(actor.uuid);
+      return;
+    }
+
+    ActiveEffectConditionHooks.#cachedConditionAvailability.set(actor.uuid, state);
   }
 
   static #handleConditionalActivations(actor, previousState) {
     for (const effect of ActiveEffectConditionHooks.#getConditionalEffects(actor)) {
-      const prior = previousState.get(effect.uuid);
-      if (!prior || prior.available || !ActiveEffectConditionHooks.#isConditionAvailable(effect, actor)) {
+      const wasAvailable = previousState.get(effect.uuid);
+      const isAvailable = ActiveEffectConditionHooks.#isConditionAvailable(effect, actor);
+      if (wasAvailable !== false || !isAvailable) {
         continue;
       }
 
@@ -264,14 +380,15 @@ export class ActiveEffectConditionHooks {
       ActiveEffectConditionHooks.#debug("conditional effect became active", {
         actor: actor.uuid,
         effect: effect.uuid,
-        hasFormulaChanges: prior.hasFormulaChanges,
-        hasExecutableMacro: prior.hasExecutableMacro
+        hasFormulaChanges: ModuleSettings.isFormulaChangesEnabled()
+          && ActiveEffectFormulaChangeService.hasFormulaChanges(effect),
+        hasExecutableMacro: ActiveEffectMacroChangeService.hasExecutableMacro(effect)
       });
-      if (prior.hasExecutableMacro) {
+      if (ActiveEffectMacroChangeService.hasExecutableMacro(effect)) {
         ActiveEffectConditionHooks.#executeActivatedEffectMacro(effect);
       }
 
-      if (prior.hasFormulaChanges) {
+      if (ModuleSettings.isFormulaChangesEnabled() && ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
         ActiveEffectConditionHooks.#rollActivatedEffectFormula(effect);
       }
     }
@@ -353,6 +470,19 @@ export class ActiveEffectConditionHooks {
 
   static #isEffectDocumentEnabled(effect) {
     return effect?.active !== false && effect?.disabled !== true;
+  }
+
+  static #hasTargetMethod(path) {
+    let current = globalThis;
+
+    for (const segment of path.split(".")) {
+      current = current?.[segment];
+      if (current === undefined || current === null) {
+        return false;
+      }
+    }
+
+    return typeof current === "function";
   }
 
   static #debug(message, data = undefined) {

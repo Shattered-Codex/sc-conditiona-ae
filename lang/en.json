@@ -21,7 +21,10 @@
         "EffectState": "Effect state"
       },
       "Wiki": "Open wiki",
-      "Invalid": "This condition has invalid code."
+      "Invalid": "This condition has invalid code.",
+      "BadgeLabel": "Condition badge label",
+      "BadgeLabelHint": "Single-line label shown on inactive effects. Leave blank to hide.",
+      "BadgeLabelPlaceholder": "e.g. Condition not met"
     },
     "MacroChange": {
       "Name": "Macro to Execute",
@@ -32,11 +35,18 @@
       "DialogTitle": "Roll Active Effect Formula",
       "DialogHint": "Confirm or edit the formula to roll for this Active Effect.",
       "RollButton": "Roll",
-      "ChatCardButton": "Roll formulas",
+      "ChatCardButton": "Roll all formulas",
       "ChatCardTitle": "Formula roll available",
-      "ChatCardHint": "This Active Effect has formula-backed changes ready to roll.",
-      "ChatCardReasonActivation": "Triggered because the Active Effect was activated.",
-      "ChatCardReasonCondition": "Triggered because the condition became true.",
+      "ChatCardHint": "This effect's formulas are ready to roll.",
+      "ChatCardIntroActivation": "{effect} has just been activated.",
+      "ChatCardIntroCondition": "The condition for {effect} has been met.",
+      "ChatCardPrompt": "Do you want to roll now?",
+      "ChatCardReasonActivation": "{effect} is active, and its formulas can be rolled now.",
+      "ChatCardReasonCondition": "{effect} is ready, and its formulas can be rolled now.",
+      "ChatCardAttributeKeyLabel": "Attribute Key",
+      "ChatCardCurrentValueLabel": "Current Value",
+      "ChatCardFormulaLabel": "Formula",
+      "ChatCardUnnamedKey": "Change",
       "RollAllLabel": "Roll all formulas",
       "RollAllUnavailableLabel": "Formulas unavailable right now",
       "RollFlavor": "Active Effect formula roll",
@@ -52,11 +62,12 @@
       },
       "UseFormulaChatCard": {
         "Name": "Post formula roll chat card",
-        "Hint": "When a conditional effect becomes available or a formula-backed Active Effect is activated, post a chat card with a roll button instead of rolling immediately."
+        "Hint": "Whenever a conditional effect becomes available, or when a formula-backed Active Effect is activated, post a chat card so the roll can be triggered from chat instead of immediately."
       },
       "ShowConditionTab": {
         "Name": "Show condition tab",
-        "Hint": "Adds the Condition tab to Active Effect configuration sheets."
+        "Hint": "Adds the Condition tab to Active Effect configuration sheets.",
+        "DaeNotice": "If you use Dynamic Active Effects (DAE) with the condition tab enabled, a libWrapper conflict warning may appear in the browser console. This is expected — the module intentionally blocks effect application when a condition is not met, which also skips DAE's wrapper for those effects. You can safely ignore this warning."
       },
       "DebugLogging": {
         "Name": "Enable debug logging",

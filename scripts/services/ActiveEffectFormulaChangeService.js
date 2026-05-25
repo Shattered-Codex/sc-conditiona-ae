@@ -128,6 +128,20 @@ export class ActiveEffectFormulaChangeService {
     return ActiveEffectFormulaChangeService.#getFormulaChanges(effect);
   }
 
+  static getFormulaChangeEntries(effect) {
+    const formulaChanges = ActiveEffectFormulaChangeService.#getFormulaChanges(effect);
+
+    return Object.entries(formulaChanges)
+      .map(([index, formulaChange]) => ({
+        index: Number(index),
+        key: String(formulaChange?.key ?? effect?.changes?.[Number(index)]?.key ?? "").trim(),
+        formula: String(formulaChange?.formula ?? "").trim(),
+        currentValue: String(effect?.changes?.[Number(index)]?.value ?? "").trim()
+      }))
+      .filter(formulaChange => Number.isInteger(formulaChange.index) && formulaChange.formula.length)
+      .sort((left, right) => left.index - right.index);
+  }
+
   static shouldPromptForCurrentUser(effect) {
     const actor = ActiveEffectFormulaChangeService.#getActor(effect);
     if (!actor) {
@@ -138,52 +152,23 @@ export class ActiveEffectFormulaChangeService {
   }
 
   static async rollFormulaChanges(effect) {
-    if (!ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
+    return ActiveEffectFormulaChangeService.#rollFormulaEntries(
+      effect,
+      ActiveEffectFormulaChangeService.getFormulaChangeEntries(effect)
+    );
+  }
+
+  static async rollFormulaChange(effect, changeIndex) {
+    const normalizedIndex = Number(changeIndex);
+    if (!Number.isInteger(normalizedIndex)) {
       return false;
     }
 
-    if (ActiveEffectConditionService.shouldSuppress(effect)) {
-      return false;
-    }
-
-    const actor = ActiveEffectFormulaChangeService.#getActor(effect);
-    if (!actor) {
-      return false;
-    }
-
-    const changes = foundry.utils.deepClone(effect.changes ?? []);
-    const formulaChanges = ActiveEffectFormulaChangeService.#getFormulaChanges(effect);
-    let changed = false;
-
-    for (const [index, formulaChange] of Object.entries(formulaChanges)) {
-      const change = changes[Number(index)];
-      if (!change) {
-        continue;
-      }
-
-      const rollResult = await ActiveEffectFormulaChangeService.#promptAndRollFormula({
-        actor,
-        change,
-        effect,
-        formula: formulaChange.formula
-      });
-
-      if (!rollResult) {
-        continue;
-      }
-
-      change.value = String(rollResult.total);
-      changed = true;
-    }
-
-    if (!changed) {
-      return false;
-    }
-
-    const updateData = { changes };
-    ActiveEffectFormulaChangeService.#setFormulaChanges(updateData, formulaChanges);
-    await effect.update(updateData, { [Constants.MODULE_ID]: { [ROLL_UPDATE_OPTION]: true } });
-    return true;
+    return ActiveEffectFormulaChangeService.#rollFormulaEntries(
+      effect,
+      ActiveEffectFormulaChangeService.getFormulaChangeEntries(effect)
+        .filter(formulaChange => formulaChange.index === normalizedIndex)
+    );
   }
 
   static #prepareChanges(source, formulaChangeSources = {}) {
@@ -478,6 +463,56 @@ export class ActiveEffectFormulaChangeService {
     return Object.fromEntries(Object.entries(formulaChanges).filter(([_index, formulaChange]) => (
       String(formulaChange?.formula ?? "").trim().length
     )));
+  }
+
+  static async #rollFormulaEntries(effect, formulaEntries) {
+    if (!formulaEntries.length || !ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
+      return false;
+    }
+
+    if (ActiveEffectConditionService.shouldSuppress(effect)) {
+      return false;
+    }
+
+    const actor = ActiveEffectFormulaChangeService.#getActor(effect);
+    if (!actor) {
+      return false;
+    }
+
+    const changes = foundry.utils.deepClone(effect.changes ?? []);
+    const formulaChanges = ActiveEffectFormulaChangeService.#getFormulaChanges(effect);
+    let changed = false;
+
+    for (const formulaEntry of formulaEntries) {
+      const change = changes[formulaEntry.index];
+      const formulaChange = formulaChanges[formulaEntry.index];
+      if (!change || !formulaChange) {
+        continue;
+      }
+
+      const rollResult = await ActiveEffectFormulaChangeService.#promptAndRollFormula({
+        actor,
+        change,
+        effect,
+        formula: formulaChange.formula
+      });
+
+      if (!rollResult) {
+        continue;
+      }
+
+      change.value = String(rollResult.total);
+      changed = true;
+    }
+
+    if (!changed) {
+      return false;
+    }
+
+    const updateData = { changes };
+    ActiveEffectFormulaChangeService.#setFormulaChanges(updateData, formulaChanges);
+    await effect.update(updateData, { [Constants.MODULE_ID]: { [ROLL_UPDATE_OPTION]: true } });
+    return true;
   }
 
   static async #promptAndRollFormula({ actor, change, effect, formula }) {

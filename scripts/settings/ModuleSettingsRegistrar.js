@@ -2,6 +2,7 @@ import { Constants } from "../constants/Constants.js";
 import { DocumentationMenu } from "./DocumentationMenu.js";
 import { ModuleSettings } from "./ModuleSettings.js";
 import { SupportMenu } from "./SupportMenu.js";
+import { resolveSettingsRoot } from "./resolveSettingsRoot.js";
 
 export class ModuleSettingsRegistrar {
   static #registered = false;
@@ -18,6 +19,7 @@ export class ModuleSettingsRegistrar {
     ModuleSettingsRegistrar.#registerDebugSetting();
     ModuleSettingsRegistrar.#registerSupportMenu();
     ModuleSettingsRegistrar.#registerDocumentationMenu();
+    ModuleSettingsRegistrar.#registerConditionTabDaeNotice();
   }
 
   static #registerFormulaSetting() {
@@ -75,6 +77,34 @@ export class ModuleSettingsRegistrar {
       config: true,
       type: Boolean,
       default: false
+    });
+  }
+
+  static #registerConditionTabDaeNotice() {
+    const settingId = `${Constants.MODULE_ID}.${ModuleSettings.SETTING_SHOW_CONDITION_TAB}`;
+    const noticeText = Constants.localize(
+      "SCConditionalAE.Settings.ShowConditionTab.DaeNotice",
+      "If you use Dynamic Active Effects (DAE) with the condition tab enabled, a libWrapper conflict warning may appear in the browser console. This is expected behavior and can be safely ignored."
+    );
+
+    Hooks.on("renderSettingsConfig", (_app, html) => {
+      const root = resolveSettingsRoot(html);
+      if (!root) {
+        return;
+      }
+
+      const settingRow = root.querySelector(
+        `[data-setting-id="${settingId}"], [data-key="${settingId}"]`
+      );
+      if (!settingRow || settingRow.dataset.scCaeDaeNoticeBound === "true") {
+        return;
+      }
+
+      settingRow.dataset.scCaeDaeNoticeBound = "true";
+      const notice = document.createElement("p");
+      notice.className = "sc-cae-settings-notice";
+      notice.innerHTML = `<i class="fas fa-triangle-exclamation"></i><span>${noticeText}</span>`;
+      settingRow.insertAdjacentElement("afterend", notice);
     });
   }
 

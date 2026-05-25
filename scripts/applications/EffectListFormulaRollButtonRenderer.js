@@ -137,6 +137,9 @@ export class EffectListFormulaRollButtonRenderer {
       ".effects-list [data-effect-id].item.effect, .effects-list .activity-row[data-effect-id], [data-tidy-sheet-part='effect-table-row'][data-effect-id]"
     )) {
       const effect = EffectListFormulaRollButtonRenderer.#resolveEffect(app, row);
+
+      EffectListFormulaRollButtonRenderer.#updateConditionBadge(row, effect);
+
       if (!effect || !ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
         row.querySelector(".sc-cae-formula-roll-control")?.remove();
         continue;
@@ -162,6 +165,67 @@ export class EffectListFormulaRollButtonRenderer {
         }
       }
     }
+  }
+
+  static #updateConditionBadge(row, effect) {
+    EffectListFormulaRollButtonRenderer.#clearConditionBadge(row);
+
+    if (!effect) {
+      return;
+    }
+
+    const rawLabel = String(
+      foundry.utils.getProperty(effect, Constants.CONDITION_BADGE_LABEL_FLAG_PATH) ?? ""
+    ).trim();
+
+    if (!rawLabel) {
+      return;
+    }
+
+    if (!ActiveEffectConditionService.hasCondition(effect)) {
+      return;
+    }
+
+    const evaluation = ActiveEffectConditionService.evaluate(effect);
+    if (evaluation.error || evaluation.available) {
+      return;
+    }
+
+    const badgeTarget = EffectListFormulaRollButtonRenderer.#findConditionBadgeTarget(row);
+    if (!badgeTarget) {
+      return;
+    }
+
+    if (badgeTarget.type === "tidy") {
+      badgeTarget.element.dataset.scCaeConditionBadge = rawLabel.slice(0, Constants.CONDITION_BADGE_LABEL_MAX_LENGTH);
+      badgeTarget.element.classList.add("sc-cae-condition-badge-host");
+      return;
+    }
+
+    const badge = document.createElement("span");
+    badge.className = "sc-cae-condition-badge";
+    badge.textContent = rawLabel.slice(0, Constants.CONDITION_BADGE_LABEL_MAX_LENGTH);
+    badgeTarget.element.append(badge);
+  }
+
+  static #clearConditionBadge(row) {
+    row.querySelector(".sc-cae-condition-badge")?.remove();
+    for (const tidyHost of row.querySelectorAll("[data-sc-cae-condition-badge]")) {
+      delete tidyHost.dataset.scCaeConditionBadge;
+      tidyHost.classList.remove("sc-cae-condition-badge-host");
+    }
+  }
+
+  static #findConditionBadgeTarget(row) {
+    const tidyNameLink = row.querySelector(
+      "[data-tidy-effect-name-container] > a, .tidy-table-cell.primary > a, .item-table-cell.primary > a"
+    );
+    if (tidyNameLink) {
+      return { type: "tidy", element: tidyNameLink };
+    }
+
+    const defaultNameContainer = row.querySelector(".effect-name");
+    return defaultNameContainer ? { type: "default", element: defaultNameContainer } : null;
   }
 
   static #createButton(effect) {
