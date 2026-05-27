@@ -10,20 +10,33 @@ export class ActiveEffectFormulaChangeService {
 
   static prepareCreateSource(effect, data) {
     const submittedFormulaChanges = ActiveEffectFormulaChangeService.#getSubmittedFormulaChanges(data);
-    const prepared = ActiveEffectFormulaChangeService.#prepareChanges(data, {
+    const existingFormulaChanges = ActiveEffectFormulaChangeService.#getFormulaChangesFromSource(data);
+    const submittedChanges = ActiveEffectFormulaChangeService.#getSubmittedChanges(effect, data)
+      ?? ActiveEffectFormulaChangeService.#getChangesArray(data)
+      ?? ActiveEffectFormulaChangeService.#getChangesArray(effect)
+      ?? [];
+    const prepared = ActiveEffectFormulaChangeService.#prepareChanges({ changes: submittedChanges }, {
+      existing: existingFormulaChanges,
       submitted: submittedFormulaChanges
     });
     if (!prepared.changed) {
-      if (ActiveEffectFormulaChangeService.#hasSubmittedFormulaChanges(submittedFormulaChanges)) {
+      if (
+        ActiveEffectFormulaChangeService.#hasExplicitBlankFormulaSubmission(submittedFormulaChanges)
+        && !foundry.utils.isEmpty(existingFormulaChanges)
+      ) {
         const sourceUpdate = {};
         ActiveEffectFormulaChangeService.#clearFormulaChanges(sourceUpdate);
+        ActiveEffectFormulaChangeService.#clearFormulaChanges(data);
         effect.updateSource(sourceUpdate);
       }
       return;
     }
 
-    const sourceUpdate = { changes: prepared.changes };
-    ActiveEffectFormulaChangeService.#setFormulaChanges(sourceUpdate, prepared.formulaChanges);
+    const sourceUpdate = {};
+    ActiveEffectFormulaChangeService.#setChangesForCreate(sourceUpdate, prepared.changes, data);
+    ActiveEffectFormulaChangeService.#setChangesForCreate(data, prepared.changes, data);
+    ActiveEffectFormulaChangeService.#setFormulaChanges(sourceUpdate, prepared.formulaChanges, existingFormulaChanges);
+    ActiveEffectFormulaChangeService.#setFormulaChanges(data, prepared.formulaChanges, existingFormulaChanges);
     effect.updateSource(sourceUpdate);
   }
 
@@ -265,6 +278,13 @@ export class ActiveEffectFormulaChangeService {
     ));
   }
 
+  static #hasExplicitBlankFormulaSubmission(formulaChanges) {
+    return Object.values(formulaChanges ?? {}).some(formulaChange => (
+      Object.prototype.hasOwnProperty.call(formulaChange ?? {}, "formula")
+      && !String(formulaChange?.formula ?? "").trim().length
+    ));
+  }
+
   static #getSubmittedChanges(effect, updates) {
     if (Array.isArray(updates?.changes)) {
       return foundry.utils.deepClone(updates.changes);
@@ -308,6 +328,18 @@ export class ActiveEffectFormulaChangeService {
     return changes;
   }
 
+  static #getChangesArray(source) {
+    if (Array.isArray(source?.changes)) {
+      return foundry.utils.deepClone(source.changes);
+    }
+
+    if (Array.isArray(source?.system?.changes)) {
+      return foundry.utils.deepClone(source.system.changes);
+    }
+
+    return null;
+  }
+
   static #setSubmittedChanges(updates, changes) {
     if (
       updates?.system?.changes
@@ -320,6 +352,29 @@ export class ActiveEffectFormulaChangeService {
 
     updates.changes = changes;
     ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(updates, "changes.");
+  }
+
+  static #setChangesForCreate(target, changes, shapeSource) {
+    if (!target || !Array.isArray(changes)) {
+      return;
+    }
+
+    if (
+      Array.isArray(shapeSource?.system?.changes)
+      || Object.keys(shapeSource ?? {}).some(key => key.startsWith("system.changes."))
+    ) {
+      foundry.utils.setProperty(target, "system.changes", changes);
+      ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(target, "system.changes.");
+      ActiveEffectFormulaChangeService.#deleteProperty(target, "changes");
+      delete target.changes;
+      ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(target, "changes.");
+      return;
+    }
+
+    target.changes = changes;
+    ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(target, "changes.");
+    ActiveEffectFormulaChangeService.#deleteProperty(target, "system.changes");
+    ActiveEffectFormulaChangeService.#clearFlattenedChangeUpdates(target, "system.changes.");
   }
 
   static #getFlattenedChangeUpdates(effect, updates) {
@@ -465,6 +520,18 @@ export class ActiveEffectFormulaChangeService {
     )));
   }
 
+  static #getFormulaChangesFromSource(source) {
+    const formulaChanges = foundry.utils.deepClone(
+      foundry.utils.getProperty(source ?? {}, Constants.FORMULA_CHANGES_FLAG_PATH)
+      ?? source?.flags?.[Constants.MODULE_ID]?.[Constants.FLAG_FORMULA_CHANGES]
+      ?? {}
+    );
+
+    return Object.fromEntries(Object.entries(formulaChanges).filter(([_index, formulaChange]) => (
+      String(formulaChange?.formula ?? "").trim().length
+    )));
+  }
+
   static async #rollFormulaEntries(effect, formulaEntries) {
     if (!formulaEntries.length || !ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
       return false;
@@ -551,7 +618,7 @@ export class ActiveEffectFormulaChangeService {
       }]
     };
     const dialogConfig = {
-      configure: true,
+      configure: false,
       options: {
         window: {
           title: windowTitle,
@@ -743,7 +810,7 @@ export class ActiveEffectFormulaChangeService {
     }
 
     if (parent instanceof CONFIG.Item.documentClass) {
-      return parent.actor ?? parent.parent ?? null;
+      return null;
     }
 
     return null;

@@ -5,8 +5,11 @@ import { EffectListFormulaRollButtonRenderer } from "./applications/EffectListFo
 import { AuraEffectsCompatibility } from "./compat/AuraEffectsCompatibility.js";
 import { DaeCompatibility } from "./compat/DaeCompatibility.js";
 import { ActiveEffectConditionHooks } from "./hooks/ActiveEffectConditionHooks.js";
+import { ActiveEffectTransferContextHooks } from "./hooks/ActiveEffectTransferContextHooks.js";
+import { EffectApplicationHooks } from "./hooks/EffectApplicationHooks.js";
 import { ActiveEffectFormulaChangeHooks } from "./hooks/ActiveEffectFormulaChangeHooks.js";
 import { ActiveEffectMacroChangeHooks } from "./hooks/ActiveEffectMacroChangeHooks.js";
+import { ActiveEffectTransferHooks } from "./hooks/ActiveEffectTransferHooks.js";
 import { ActiveEffectConditionService } from "./services/ActiveEffectConditionService.js";
 import { ActiveEffectFormulaChatCardService } from "./services/ActiveEffectFormulaChatCardService.js";
 import { ModuleSettings } from "./settings/ModuleSettings.js";
@@ -34,6 +37,9 @@ Hooks.once("setup", () => {
   }
 
   ActiveEffectConditionHooks.activate();
+  ActiveEffectTransferContextHooks.activate();
+  EffectApplicationHooks.activate();
+  ActiveEffectTransferHooks.activate();
   if (ModuleSettings.isFormulaChangesEnabled()) {
     ActiveEffectFormulaChatCardService.activate();
     ActiveEffectFormulaChangeHooks.activate();

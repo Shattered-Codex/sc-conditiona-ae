@@ -6,6 +6,7 @@ import { ModuleSettings } from "../settings/ModuleSettings.js";
 
 export class ActiveEffectFormulaChangeHooks {
   static #registered = false;
+  static #UPDATE_ACTIVATION_OPTION = "formulaActivationTransition";
 
   static activate() {
     if (
@@ -29,6 +30,7 @@ export class ActiveEffectFormulaChangeHooks {
 
   static #onPreUpdateActiveEffect(effect, updates, options) {
     ActiveEffectFormulaChangeService.prepareUpdateSource(effect, updates, options);
+    ActiveEffectFormulaChangeHooks.#storeActivationTransition(effect, updates, options);
   }
 
   static #onCreateActiveEffect(effect) {
@@ -44,7 +46,7 @@ export class ActiveEffectFormulaChangeHooks {
       return;
     }
 
-    if (updates?.disabled !== false) {
+    if (!options?.[Constants.MODULE_ID]?.[ActiveEffectFormulaChangeHooks.#UPDATE_ACTIVATION_OPTION]) {
       return;
     }
 
@@ -71,5 +73,18 @@ export class ActiveEffectFormulaChangeHooks {
   static #roll(effect) {
     ActiveEffectFormulaChatCardService.requestRoll(effect, { reason: "activation" })
       .catch(error => console.warn(`[${Constants.MODULE_ID}] active effect formula change hook failed`, error));
+  }
+
+  static #storeActivationTransition(effect, updates, options) {
+    if (!options || !("disabled" in (updates ?? {}))) {
+      return;
+    }
+
+    const moduleOptions = options[Constants.MODULE_ID] ?? {};
+    moduleOptions[ActiveEffectFormulaChangeHooks.#UPDATE_ACTIVATION_OPTION] = (
+      updates.disabled === false
+      && !ActiveEffectFormulaChangeHooks.#isActive(effect)
+    );
+    options[Constants.MODULE_ID] = moduleOptions;
   }
 }
