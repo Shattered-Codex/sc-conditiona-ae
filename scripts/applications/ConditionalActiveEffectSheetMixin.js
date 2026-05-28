@@ -198,6 +198,9 @@ function buildConditionContext(sheet, context) {
   const conditionBadgeLabel = String(
     foundry.utils.getProperty(sheet.document ?? {}, Constants.CONDITION_BADGE_LABEL_FLAG_PATH) ?? ""
   );
+  const applyBehavior = String(
+    foundry.utils.getProperty(sheet.document ?? {}, Constants.APPLY_BEHAVIOR_FLAG_PATH) ?? "auto"
+  );
 
   return {
     tab: getConditionTab(sheet, context),
@@ -207,6 +210,11 @@ function buildConditionContext(sheet, context) {
     conditionBadgeLabel,
     conditionBadgeLabelLength: conditionBadgeLabel.length,
     conditionBadgeLabelFlagPath: Constants.CONDITION_BADGE_LABEL_FLAG_PATH,
+    applyBehavior,
+    applyBehaviorIsAuto: applyBehavior === "auto",
+    applyBehaviorIsUpdate: applyBehavior === "update",
+    applyBehaviorIsDuplicate: applyBehavior === "duplicate",
+    applyBehaviorFlagPath: Constants.APPLY_BEHAVIOR_FLAG_PATH,
     badgeLabelMaxLength: Constants.CONDITION_BADGE_LABEL_MAX_LENGTH,
     conditionWikiUrl: `${Constants.MODULE_WIKI_URL}#active-effect-condition`,
     conditionInvalid: !validation.valid,
@@ -263,7 +271,15 @@ function buildConditionContext(sheet, context) {
       badgeLabelPlaceholder: Constants.localize(
         "SCConditionalAE.ConditionTab.BadgeLabelPlaceholder",
         "e.g. Condition not met"
-      )
+      ),
+      applyBehavior: Constants.localize("SCConditionalAE.ConditionTab.ApplyBehavior", "When applied to a target"),
+      applyBehaviorHint: Constants.localize(
+        "SCConditionalAE.ConditionTab.ApplyBehaviorHint",
+        "Choose whether applying this effect to a target should update an existing copy or create a new duplicate."
+      ),
+      applyBehaviorAuto: Constants.localize("SCConditionalAE.ConditionTab.ApplyBehaviorAuto", "Auto"),
+      applyBehaviorUpdate: Constants.localize("SCConditionalAE.ConditionTab.ApplyBehaviorUpdate", "Update existing"),
+      applyBehaviorDuplicate: Constants.localize("SCConditionalAE.ConditionTab.ApplyBehaviorDuplicate", "Create duplicate")
     }
   };
 }

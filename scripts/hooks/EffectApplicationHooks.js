@@ -1,4 +1,6 @@
 import { Constants } from "../constants/Constants.js";
+import { ActiveEffectConditionService } from "../services/ActiveEffectConditionService.js";
+import { ActiveEffectFormulaChangeService } from "../services/ActiveEffectFormulaChangeService.js";
 import { ActiveEffectTransferMetadataService } from "../services/ActiveEffectTransferMetadataService.js";
 
 export class EffectApplicationHooks {
@@ -40,14 +42,19 @@ export class EffectApplicationHooks {
         }
       };
 
+      const shouldCreateDuplicate = EffectApplicationHooks.#shouldCreateDuplicateEffect(sourceEffect ?? effect);
       const existingEffect = actor.effects.find(candidate => candidate.origin === origin.uuid);
-      if (existingEffect) {
+      if (existingEffect && !shouldCreateDuplicate) {
         const updateData = foundry.utils.mergeObject({
           ...EffectApplicationHooks.#getInitialDurationData(effect.constructor),
           disabled: false
         }, effectFlags);
         ActiveEffectTransferMetadataService.mergeModuleFlags(sourceEffect ?? effect, updateData, { activity });
-        return existingEffect.update(updateData);
+        return existingEffect.update(updateData, {
+          [Constants.MODULE_ID]: {
+            [ActiveEffectFormulaChangeService.REAPPLY_UPDATE_OPTION]: true
+          }
+        });
       }
 
       if (!game.user.isGM && concentration && !concentration.isOwner) {
@@ -214,5 +221,22 @@ export class EffectApplicationHooks {
       key: String(change?.key ?? "").trim(),
       mode: Number(change?.mode ?? 0)
     }));
+  }
+
+  static #shouldCreateDuplicateEffect(effect) {
+    const applyBehavior = String(
+      foundry.utils.getProperty(effect ?? {}, Constants.APPLY_BEHAVIOR_FLAG_PATH) ?? "auto"
+    ).trim().toLowerCase();
+
+    if (applyBehavior === "duplicate") {
+      return true;
+    }
+
+    if (applyBehavior === "update") {
+      return false;
+    }
+
+    return ActiveEffectConditionService.hasCondition(effect)
+      || ActiveEffectFormulaChangeService.hasFormulaChanges(effect);
   }
 }

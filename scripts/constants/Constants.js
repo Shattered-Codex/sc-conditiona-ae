@@ -5,9 +5,11 @@ export class Constants {
   static FLAG_CONDITION = "condition";
   static FLAG_FORMULA_CHANGES = "formulaChanges";
   static FLAG_CONDITION_BADGE_LABEL = "conditionBadgeLabel";
+  static FLAG_APPLY_BEHAVIOR = "applyBehavior";
   static CONDITION_FLAG_PATH = `flags.${Constants.MODULE_ID}.${Constants.FLAG_CONDITION}`;
   static FORMULA_CHANGES_FLAG_PATH = `flags.${Constants.MODULE_ID}.${Constants.FLAG_FORMULA_CHANGES}`;
   static CONDITION_BADGE_LABEL_FLAG_PATH = `flags.${Constants.MODULE_ID}.${Constants.FLAG_CONDITION_BADGE_LABEL}`;
+  static APPLY_BEHAVIOR_FLAG_PATH = `flags.${Constants.MODULE_ID}.${Constants.FLAG_APPLY_BEHAVIOR}`;
   static CONDITION_BADGE_LABEL_MAX_LENGTH = 45;
   static DAE_CONDITION_FLAG_PATH = "flags.dae.enableCondition";
   static DAE_DISABLE_CONDITION_FLAG_PATH = "flags.dae.disableCondition";

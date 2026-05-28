@@ -24,7 +24,12 @@
       "Invalid": "This condition has invalid code.",
       "BadgeLabel": "Condition badge label",
       "BadgeLabelHint": "Single-line label shown on inactive effects. Leave blank to hide.",
-      "BadgeLabelPlaceholder": "e.g. Condition not met"
+      "BadgeLabelPlaceholder": "e.g. Condition not met",
+      "ApplyBehavior": "When applied to a target",
+      "ApplyBehaviorHint": "Choose whether applying this effect to a target should update an existing copy or create a new duplicate.",
+      "ApplyBehaviorAuto": "Auto",
+      "ApplyBehaviorUpdate": "Update existing",
+      "ApplyBehaviorDuplicate": "Create duplicate"
     },
     "MacroChange": {
       "Name": "Macro to Execute",

@@ -24,7 +24,12 @@
       "Invalid": "Esta condição contém código inválido.",
       "BadgeLabel": "Label do badge de condição",
       "BadgeLabelHint": "Texto de linha única exibido nos efeitos inativos. Deixe em branco para ocultar.",
-      "BadgeLabelPlaceholder": "ex: Condição não atendida"
+      "BadgeLabelPlaceholder": "ex: Condição não atendida",
+      "ApplyBehavior": "Quando aplicado a um alvo",
+      "ApplyBehaviorHint": "Escolha se aplicar este efeito a um alvo deve atualizar a cópia existente ou criar uma nova duplicata.",
+      "ApplyBehaviorAuto": "Automático",
+      "ApplyBehaviorUpdate": "Atualizar existente",
+      "ApplyBehaviorDuplicate": "Criar duplicata"
     },
     "MacroChange": {
       "Name": "Macro para executar",

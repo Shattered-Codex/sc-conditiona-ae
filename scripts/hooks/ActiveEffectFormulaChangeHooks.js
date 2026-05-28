@@ -46,7 +46,11 @@ export class ActiveEffectFormulaChangeHooks {
       return;
     }
 
-    if (!options?.[Constants.MODULE_ID]?.[ActiveEffectFormulaChangeHooks.#UPDATE_ACTIVATION_OPTION]) {
+    const moduleOptions = options?.[Constants.MODULE_ID] ?? {};
+    if (
+      !moduleOptions[ActiveEffectFormulaChangeHooks.#UPDATE_ACTIVATION_OPTION]
+      && !moduleOptions[ActiveEffectFormulaChangeService.REAPPLY_UPDATE_OPTION]
+    ) {
       return;
     }
 

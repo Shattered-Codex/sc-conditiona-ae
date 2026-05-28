@@ -82,6 +82,26 @@
       <p class="hint">{{ strings.badgeLabelHint }}</p>
     </div>
 
+    <div class="form-group">
+      <label>{{ strings.applyBehavior }}</label>
+      <div class="form-fields">
+        {{#if editable}}
+        <select name="{{ applyBehaviorFlagPath }}">
+          <option value="auto" {{#if applyBehaviorIsAuto}}selected{{/if}}>{{ strings.applyBehaviorAuto }}</option>
+          <option value="update" {{#if applyBehaviorIsUpdate}}selected{{/if}}>{{ strings.applyBehaviorUpdate }}</option>
+          <option value="duplicate" {{#if applyBehaviorIsDuplicate}}selected{{/if}}>{{ strings.applyBehaviorDuplicate }}</option>
+        </select>
+        {{else}}
+        <input
+          type="text"
+          value="{{ applyBehavior }}"
+          disabled
+        />
+        {{/if}}
+      </div>
+      <p class="hint">{{ strings.applyBehaviorHint }}</p>
+    </div>
+
     {{#if editable}}
     <code-mirror
       name="{{ conditionFlagPath }}"

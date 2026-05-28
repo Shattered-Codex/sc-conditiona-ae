@@ -2,10 +2,15 @@ import { Constants } from "../constants/Constants.js";
 import { ActiveEffectConditionService } from "./ActiveEffectConditionService.js";
 
 const ROLL_UPDATE_OPTION = "formulaRollUpdate";
+const REAPPLY_UPDATE_OPTION = "formulaReapplyUpdate";
 
 export class ActiveEffectFormulaChangeService {
   static get ROLL_UPDATE_OPTION() {
     return ROLL_UPDATE_OPTION;
+  }
+
+  static get REAPPLY_UPDATE_OPTION() {
+    return REAPPLY_UPDATE_OPTION;
   }
 
   static prepareCreateSource(effect, data) {
@@ -45,6 +50,8 @@ export class ActiveEffectFormulaChangeService {
       return;
     }
 
+    const isFormulaReapplication = options?.[Constants.MODULE_ID]?.[REAPPLY_UPDATE_OPTION] === true;
+    const isDisabledReactivation = updates?.disabled === false && effect?.disabled === true;
     const existingFormulaChanges = ActiveEffectFormulaChangeService.#getFormulaChanges(effect);
     const submittedFormulaChanges = ActiveEffectFormulaChangeService.#getSubmittedFormulaChanges(updates);
     const submittedChanges = ActiveEffectFormulaChangeService.#getSubmittedChanges(effect, updates);
@@ -122,10 +129,15 @@ export class ActiveEffectFormulaChangeService {
       }
     }
 
-    if (updates?.disabled !== false || !ActiveEffectFormulaChangeService.hasFormulaChanges(effect)) {
+    if (
+      updates?.disabled !== false
+      || !ActiveEffectFormulaChangeService.hasFormulaChanges(effect)
+      || (!isDisabledReactivation && !isFormulaReapplication)
+    ) {
       return;
     }
 
+    // Reapplying an existing effect should clear formula-backed values so the update hook can request a fresh roll.
     updates.changes = ActiveEffectFormulaChangeService.#zeroFormulaChangeValues(effect);
   }
 
