@@ -3,16 +3,6 @@
   "title": "SC - Conditional AE",
   "description": "Adds JavaScript conditions to Active Effects.",
   "version": "0.0.9",
-  "media": [
-    {
-      "type": "setup",
-      "url": "modules/sc-conditional-ae/assets/img/cover.webp"
-    },
-    {
-      "type": "cover",
-      "url": "modules/sc-conditional-ae/assets/img/cover.webp"
-    }
-  ],
   "authors": [
     {
       "name": "Gustavo Bacelar"
