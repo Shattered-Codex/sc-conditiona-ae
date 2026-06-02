@@ -212,6 +212,7 @@ jobs:
             --arg title "${MODULE_TITLE} v${VERSION}" \
             --arg url "${DOWNLOAD_HUB_URL}" \
             --arg description "${DESCRIPTION}" \
+            --arg imageUrl "https://i.imgur.com/5TC1YNg.png" \
             '{
               content: $content,
               allowed_mentions: { parse: ["everyone"] },
@@ -221,30 +222,15 @@ jobs:
                   url: $url,
                   description: $description,
                   color: 3447003,
-                  image: { url: "attachment://cover.webp" }
+                  image: { url: $imageUrl }
                 }
               ]
             }')
 
-          COVER_IMAGE=""
-          if [ -f "assets/img/cover.webp" ]; then
-            COVER_IMAGE="assets/img/cover.webp"
-          elif [ -f "assets/imgs/cover.webp" ]; then
-            COVER_IMAGE="assets/imgs/cover.webp"
-          fi
-
-          if [ -n "${COVER_IMAGE}" ]; then
-            curl -sSf \
-              -F "payload_json=${payload}" \
-              -F "files[0]=@${COVER_IMAGE};filename=cover.webp;type=image/webp" \
-              "${DISCORD_WEBHOOK_URL}"
-          else
-            payload=$(printf '%s' "${payload}" | jq 'del(.embeds[0].image)')
-            curl -sSf \
-              -H "Content-Type: application/json" \
-              -d "${payload}" \
-              "${DISCORD_WEBHOOK_URL}"
-          fi
+          curl -sSf \
+            -H "Content-Type: application/json" \
+            -d "${payload}" \
+            "${DISCORD_WEBHOOK_URL}"
 
       - name: Upload artifacts to R2
         if: ${{ success() }}

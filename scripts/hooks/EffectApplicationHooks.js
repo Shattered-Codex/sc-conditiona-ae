@@ -19,7 +19,7 @@ export class EffectApplicationHooks {
       Hooks.once("ready", () => {
         EffectApplicationHooks.#patchEffectApplication();
       });
-      Hooks.on("renderChatMessage", () => {
+      Hooks.on("renderChatMessageHTML", () => {
         EffectApplicationHooks.#patchEffectApplication();
       });
     }
