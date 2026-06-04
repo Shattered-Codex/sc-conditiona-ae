@@ -754,7 +754,7 @@ export class ActiveEffectFormulaChangeService {
     }
 
     if (parent instanceof CONFIG.Item.documentClass) {
-      return null;
+      return parent.actor ?? parent.parent ?? null;
     }
 
     return null;

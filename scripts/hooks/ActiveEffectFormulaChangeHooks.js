@@ -7,6 +7,7 @@ import { ModuleSettings } from "../settings/ModuleSettings.js";
 export class ActiveEffectFormulaChangeHooks {
   static #registered = false;
   static #UPDATE_ACTIVATION_OPTION = "formulaActivationTransition";
+  static #itemTransferActiveStates = new Map();
 
   static activate() {
     if (
@@ -22,6 +23,10 @@ export class ActiveEffectFormulaChangeHooks {
     Hooks.on("preUpdateActiveEffect", ActiveEffectFormulaChangeHooks.#onPreUpdateActiveEffect);
     Hooks.on("createActiveEffect", ActiveEffectFormulaChangeHooks.#onCreateActiveEffect);
     Hooks.on("updateActiveEffect", ActiveEffectFormulaChangeHooks.#onUpdateActiveEffect);
+    Hooks.on("createItem", ActiveEffectFormulaChangeHooks.#onItemChanged);
+    Hooks.on("updateItem", ActiveEffectFormulaChangeHooks.#onItemChanged);
+    Hooks.on("deleteItem", ActiveEffectFormulaChangeHooks.#onItemDeleted);
+    Hooks.once("ready", ActiveEffectFormulaChangeHooks.#primeTransferredItemStates);
   }
 
   static #onPreCreateActiveEffect(effect, data) {
@@ -79,6 +84,51 @@ export class ActiveEffectFormulaChangeHooks {
       .catch(error => console.warn(`[${Constants.MODULE_ID}] active effect formula change hook failed`, error));
   }
 
+  static #onItemChanged(item) {
+    if (!(item?.parent instanceof CONFIG.Actor.documentClass || item?.actor instanceof CONFIG.Actor.documentClass)) {
+      return;
+    }
+
+    for (const effect of item.effects ?? []) {
+      if (!ActiveEffectFormulaChangeHooks.#isTransferredOwnedItemEffect(effect)) {
+        ActiveEffectFormulaChangeHooks.#itemTransferActiveStates.delete(effect.uuid);
+        continue;
+      }
+
+      const wasActive = ActiveEffectFormulaChangeHooks.#itemTransferActiveStates.get(effect.uuid) === true;
+      const isActive = ActiveEffectFormulaChangeHooks.#isActive(effect);
+      ActiveEffectFormulaChangeHooks.#itemTransferActiveStates.set(effect.uuid, isActive);
+
+      if (!wasActive && isActive && ActiveEffectFormulaChangeHooks.#shouldRoll(effect)) {
+        ActiveEffectFormulaChangeHooks.#roll(effect);
+      }
+    }
+  }
+
+  static #onItemDeleted(item) {
+    for (const effect of item?.effects ?? []) {
+      if (effect?.uuid) {
+        ActiveEffectFormulaChangeHooks.#itemTransferActiveStates.delete(effect.uuid);
+      }
+    }
+  }
+
+  static #primeTransferredItemStates() {
+    ActiveEffectFormulaChangeHooks.#itemTransferActiveStates.clear();
+
+    for (const actor of game.actors?.contents ?? []) {
+      for (const item of actor.items ?? []) {
+        for (const effect of item.effects ?? []) {
+          if (!ActiveEffectFormulaChangeHooks.#isTransferredOwnedItemEffect(effect)) {
+            continue;
+          }
+
+          ActiveEffectFormulaChangeHooks.#itemTransferActiveStates.set(effect.uuid, ActiveEffectFormulaChangeHooks.#isActive(effect));
+        }
+      }
+    }
+  }
+
   static #storeActivationTransition(effect, updates, options) {
     if (!options || !("disabled" in (updates ?? {}))) {
       return;
@@ -90,5 +140,15 @@ export class ActiveEffectFormulaChangeHooks {
       && !ActiveEffectFormulaChangeHooks.#isActive(effect)
     );
     options[Constants.MODULE_ID] = moduleOptions;
+  }
+
+  static #isTransferredOwnedItemEffect(effect) {
+    return effect?.parent instanceof CONFIG.Item.documentClass
+      && effect.parent.actor instanceof CONFIG.Actor.documentClass
+      && effect.transfer !== false
+      && effect.transfer !== 0
+      && effect.transfer !== null
+      && effect.transfer !== undefined
+      && ActiveEffectFormulaChangeService.hasFormulaChanges(effect);
   }
 }
